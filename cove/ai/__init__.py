@@ -4,7 +4,8 @@ deterministic calls, Sonnet for reasoning, Opus as a manual escalation. Everythi
 degrades gracefully when no API key is configured.
 """
 
-from .client import available, status, AIError
+from .client import available, active_provider, status, AIError
 from . import intake, naming, triage, chat
 
-__all__ = ["available", "status", "AIError", "intake", "naming", "triage", "chat"]
+__all__ = ["available", "active_provider", "status", "AIError",
+           "intake", "naming", "triage", "chat"]

@@ -5,7 +5,6 @@ Plex/Jellyfin-style destination path. Deterministic, cheap, high-volume — so i
 runs on the cheap model. Falls back to the raw title if AI is unavailable.
 """
 
-from .. import config
 from . import client
 
 _TOOL = {
@@ -43,11 +42,10 @@ _SYSTEM = (
 
 def clean(raw: str, kind: str = "video") -> dict:
     """Return {title, library, dest_rel, year?}. Raises AIError if unavailable."""
-    out = client.call_tool(
-        config.MODEL_CHEAP,
+    return client.call_json(
+        "cheap",
         _SYSTEM,
         f"kind={kind}\nfilename/title: {raw}",
-        _TOOL,
+        _TOOL["input_schema"],
         max_tokens=512,
     )
-    return out

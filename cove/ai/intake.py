@@ -6,7 +6,7 @@ each candidate through the adapter layer so playlists/series/feeds get expanded
 into concrete downloadable Items exactly as the manual New Download flow does.
 """
 
-from .. import adapters, config
+from .. import adapters
 from . import client
 
 _TOOL = {
@@ -67,7 +67,7 @@ def plan(text: str) -> dict:
     Expands series/playlist candidates through the adapter layer; leaves single
     links as one item each. Never queues — the caller confirms first.
     """
-    out = client.call_tool(config.MODEL_SMART, _SYSTEM, text, _TOOL, max_tokens=2048)
+    out = client.call_json("smart", _SYSTEM, text, _TOOL["input_schema"], max_tokens=2048)
     items: list[dict] = []
     for c in out.get("candidates", []):
         url = c.get("url")

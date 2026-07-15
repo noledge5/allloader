@@ -25,25 +25,36 @@ any device on your LAN.
 - **Live progress** — a WebSocket pushes progress to every open device at once.
 - **Claude assistant** (optional) — natural-language intake ("grab this playlist
   as audio"), a chat panel that drives the queue, failure triage, and title
-  cleanup. Tiered models (Haiku/Sonnet/Opus) with prompt caching
-  (`docs/adr/0002-claude-integration.md`). Everything works without it.
+  cleanup. Tiered models (Haiku/Sonnet/Opus). Powered by **either your Claude
+  subscription** (via the Claude Code CLI, no per-token bill) **or an Anthropic
+  API key** (`docs/adr/0002-claude-integration.md`, `docs/adr/0008-…`). Everything
+  works without it.
 
 ## Run it on Synology (Docker)
 
-1. Copy the repo onto the NAS (or clone it).
-2. `cp .env.example .env` and edit:
+The image is built by CI and published to GHCR, so the NAS just pulls it — no
+building on the Synology.
+
+1. Put `docker-compose.yml` and `.env.example` on the NAS. `cp .env.example .env`
+   and edit:
    - `COVE_NAS_PATH` → the share where downloads should land (e.g.
      `/volume1/media`), the *same* folder Plex/Jellyfin already watch.
-   - `ANTHROPIC_API_KEY` → optional, only for the Claude features.
-3. Build and start:
+   - Claude (optional) — pick one:
+     - **Subscription:** on any machine you're logged into Claude Code with, run
+       `claude setup-token` and paste the token into `CLAUDE_CODE_OAUTH_TOKEN`.
+     - **API key:** set `ANTHROPIC_API_KEY` instead (it wins if both are set).
+2. Pull and start:
    ```sh
-   docker compose up -d --build
+   docker compose pull && docker compose up -d
    ```
-4. Open `http://<nas-ip>:5100`.
+   (First run: make the GHCR package public, or `docker login ghcr.io` with a
+   read token, so the NAS can pull it. To build locally instead of pulling:
+   `docker compose up -d --build`.)
+3. Open `http://<nas-ip>:5100`.
 
-State (the download queue) lives in the `/config` volume and survives container
-recreation. There is no login — Cove is meant for your LAN only
-(`docs/adr/0003-lan-no-auth.md`).
+State (the download queue and the Claude CLI config) lives in the `/config`
+volume and survives container recreation. There is no login — Cove is meant for
+your LAN only (`docs/adr/0003-lan-no-auth.md`).
 
 ## Run it for development
 
@@ -63,7 +74,8 @@ npm run dev        # Vite dev server on :5173, proxies /api to :5100
 To produce the bundle the backend serves: `npm run build` → `web/dist`.
 
 Useful env vars (all optional; see `cove/config.py`): `COVE_NAS_BASE`,
-`COVE_DB`, `COVE_PORT`, `COVE_MAX_CONCURRENT`, `ANTHROPIC_API_KEY`,
+`COVE_DB`, `COVE_PORT`, `COVE_MAX_CONCURRENT`, `COVE_AI_PROVIDER`
+(`auto`/`cli`/`api`), `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`,
 `COVE_MODEL_CHEAP` / `COVE_MODEL_SMART` / `COVE_MODEL_MAX`.
 
 ## Streamhosters & resolvers
@@ -95,4 +107,5 @@ docker-compose.yml
 The `docs/adr/` folder records the significant calls: streamhoster handling
 (0001), Claude tiers (0002), LAN/no-auth (0003), design reconciliation (0004),
 the stack (0005), the media-center pivot and its reversal (0006 → superseded by
-0007, the acquisition-on-Synology scope).
+0007, the acquisition-on-Synology scope), and the subscription-CLI Claude
+provider + CI-published images (0008).

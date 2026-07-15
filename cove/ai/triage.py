@@ -6,7 +6,6 @@ action the user can actually take (try another hoster, install a resolver plugin
 paste a direct link). Read-only: it never changes state.
 """
 
-from .. import config
 from . import client
 
 _SYSTEM = (
@@ -32,5 +31,5 @@ def explain(download: dict) -> str:
         "status": download.get("status"),
     }
     lines = "\n".join(f"{k}: {v}" for k, v in fields.items() if v is not None)
-    return client.call_text(config.MODEL_SMART, _SYSTEM,
+    return client.call_text("smart", _SYSTEM,
                             f"A download failed. Details:\n{lines}", max_tokens=400)

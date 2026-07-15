@@ -1,23 +1,32 @@
 # Cove on Synology Container Manager (or any Docker host).
 #
-#   1. Copy .env.example to .env and set your paths / API key.
-#   2. Point the /nas volume at the share where downloads should land.
-#   3. docker compose up -d   →   open http://<nas-ip>:5100
+#   1. cp .env.example .env  and fill it in.
+#   2. Pull the image built by CI and start:
+#        docker compose pull && docker compose up -d
+#      (or build locally instead:  docker compose up -d --build)
+#   3. Open http://<nas-ip>:5100
 #
 services:
   cove:
+    # Prebuilt image published by the GitHub Action (ADR 0008). `docker compose
+    # pull` fetches it; `--build` uses the local Dockerfile instead.
+    image: ${COVE_IMAGE:-ghcr.io/noledge5/allloader:latest}
     build: .
-    image: cove:latest
     container_name: cove
     restart: unless-stopped
     ports:
       - "${COVE_PORT:-5100}:5100"
     environment:
-      # Claude features stay off until this is set (everything else works).
+      # --- Claude (optional) ---
+      # Subscription path: paste a token from `claude setup-token`.
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+      # API path instead: set this and leave the token blank.
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # "auto" (default) picks API if a key is set, else the subscription CLI.
+      COVE_AI_PROVIDER: "${COVE_AI_PROVIDER:-auto}"
       COVE_MAX_CONCURRENT: "${COVE_MAX_CONCURRENT:-3}"
     volumes:
       # Where finished downloads are written (Plex/Jellyfin read the same path).
       - "${COVE_NAS_PATH:-/volume1/media}:/nas"
-      # Persistent state (the SQLite queue). Survives container recreation.
+      # Persistent state: the SQLite queue + the Claude CLI config.
       - "${COVE_CONFIG_PATH:-./config}:/config"

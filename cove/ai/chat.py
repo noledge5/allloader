@@ -1,90 +1,85 @@
 """Conversational control panel (ADR 0002 — Sonnet tier).
 
-A bounded tool-use loop that lets the user drive Cove in natural language:
-"what's downloading?", "pause the big one", "retry the failed episodes". Claude
-calls a small set of safe tools; Cove executes them against the manager/db and
-feeds results back until the model answers in prose.
+Lets the user drive Cove in natural language: "what's downloading?", "pause the
+big one", "retry the failed episodes". We hand Claude the current queue as
+context and ask for a JSON reply plus an optional list of actions to run, then
+execute them. Single-shot (not a live tool-loop) so it works identically on the
+API and the subscription-CLI backend.
 """
 
-from .. import config, db, nas
+from .. import db, nas
 from ..engine.manager import manager
 from . import client
 
-MAX_TURNS = 6  # hard cap on tool round-trips per user message
-
-_TOOLS = [
-    {
-        "name": "get_status",
-        "description": "List current downloads with their status, progress and size.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "status": {"type": ["string", "null"],
-                           "description": "Filter: queued|downloading|paused|completed|failed|canceled"},
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reply": {"type": "string", "description": "Short, factual reply to the user."},
+        "actions": {
+            "type": "array",
+            "description": "Actions to perform. Leave empty if none are needed.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string",
+                               "enum": ["queue", "pause", "resume", "retry", "cancel"]},
+                    "id": {"type": "string", "description": "Download id (from the queue list)."},
+                    "url": {"type": "string", "description": "For action=queue."},
+                    "kind": {"type": "string", "enum": ["file", "video", "audio"]},
+                    "title": {"type": "string"},
+                    "quality": {"type": "string"},
+                    "library": {"type": "string"},
+                },
+                "required": ["action"],
             },
         },
     },
-    {
-        "name": "queue_download",
-        "description": "Queue a single direct URL or video link for download.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string"},
-                "kind": {"type": "string", "enum": ["file", "video", "audio"]},
-                "title": {"type": ["string", "null"]},
-                "quality": {"type": ["string", "null"]},
-                "library": {"type": ["string", "null"]},
-            },
-            "required": ["url"],
-        },
-    },
-    {
-        "name": "control_download",
-        "description": "Pause, resume, retry, or cancel a download by its id.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "action": {"type": "string", "enum": ["pause", "resume", "retry", "cancel"]},
-            },
-            "required": ["id", "action"],
-        },
-    },
-]
+    "required": ["reply"],
+}
 
 _SYSTEM = (
     "You are the assistant inside Cove, a self-hosted download manager on a home NAS. "
-    "Help the user inspect and control their downloads using the provided tools. "
-    "Prefer get_status before acting so you reference real ids. 'retry' and 'resume' "
-    "both requeue a stopped download. Keep replies short and factual. Never invent "
-    "download ids or URLs; if you lack something, ask."
+    "You are given the current download queue. Answer the user and, when they ask you "
+    "to act, include actions. Only use download ids that appear in the queue — never "
+    "invent ids or URLs. 'retry' and 'resume' both requeue a stopped download. Keep "
+    "the reply short and factual; if you lack something you need, ask for it instead "
+    "of guessing."
 )
 
 
-def _run_tool(name: str, args: dict) -> dict:
-    if name == "get_status":
-        st = args.get("status")
-        rows = db.list_downloads([st] if st else None)
-        return {"downloads": [
-            {"id": r["id"], "title": r.get("title"), "status": r["status"],
-             "kind": r.get("kind"), "downloaded": r.get("downloaded"),
-             "total": r.get("total"), "error": r.get("error")}
-            for r in rows
-        ]}
-    if name == "queue_download":
-        url = args["url"]
-        did = _queue(url, args.get("kind", "file"), args.get("title"),
-                     args.get("quality"), args.get("library"))
-        return {"queued": did}
-    if name == "control_download":
-        did, action = args["id"], args["action"]
-        if not db.get_download(did):
-            return {"error": f"no download with id {did}"}
-        {"pause": manager.pause, "resume": manager.resume,
-         "retry": manager.resume, "cancel": manager.cancel}[action](did)
-        return {"ok": True, "id": did, "action": action}
-    return {"error": f"unknown tool {name}"}
+def _snapshot() -> str:
+    rows = db.list_downloads()
+    if not rows:
+        return "(the queue is empty)"
+    out = []
+    for r in rows:
+        out.append(
+            f"- id={r['id']} status={r['status']} kind={r.get('kind')} "
+            f"title={r.get('title') or r.get('filename') or r.get('url')} "
+            f"got={r.get('downloaded')}/{r.get('total')}"
+            + (f" error={r['error']}" if r.get("error") else "")
+        )
+    return "\n".join(out)
+
+
+def _run_action(a: dict) -> dict:
+    action = a.get("action")
+    if action == "queue":
+        url = a.get("url")
+        if not url:
+            return {"action": action, "error": "no url"}
+        did = _queue(url, a.get("kind", "file"), a.get("title"),
+                     a.get("quality"), a.get("library"))
+        return {"action": action, "id": did, "url": url}
+    did = a.get("id")
+    if not did or not db.get_download(did):
+        return {"action": action, "error": f"no download with id {did}"}
+    fn = {"pause": manager.pause, "resume": manager.resume,
+          "retry": manager.resume, "cancel": manager.cancel}.get(action)
+    if not fn:
+        return {"action": action, "error": "unknown action"}
+    fn(did)
+    return {"action": action, "id": did}
 
 
 def _queue(url, kind, title, quality, library):
@@ -99,34 +94,11 @@ def _queue(url, kind, title, quality, library):
 
 
 def reply(message: str, history: list | None = None) -> dict:
-    """Run one user message through the tool-loop. Returns {reply, actions}.
-
-    `history` is a list of prior {role, content} text turns from the client so the
-    conversation has memory. Raises AIError if AI is unavailable.
-    """
-    messages = list(history or [])
-    messages.append({"role": "user", "content": message})
-    actions: list[dict] = []
-
-    for _ in range(MAX_TURNS):
-        msg = client.converse(config.MODEL_SMART, _SYSTEM, messages, _TOOLS)
-        messages.append({"role": "assistant", "content": msg.content})
-        tool_uses = [b for b in msg.content if b.type == "tool_use"]
-        if not tool_uses:
-            text = "".join(b.text for b in msg.content if b.type == "text").strip()
-            return {"reply": text, "actions": actions}
-        results = []
-        for tu in tool_uses:
-            out = _run_tool(tu.name, dict(tu.input))
-            actions.append({"tool": tu.name, "input": dict(tu.input), "output": out})
-            results.append({"type": "tool_result", "tool_use_id": tu.id,
-                            "content": _json(out)})
-        messages.append({"role": "user", "content": results})
-
-    return {"reply": "I ran out of steps before finishing that. Try a smaller request.",
-            "actions": actions}
-
-
-def _json(obj) -> str:
-    import json
-    return json.dumps(obj, default=str)
+    """Run one user message. Returns {reply, actions}. Raises AIError if unavailable."""
+    convo = ""
+    for h in (history or [])[-6:]:
+        convo += f"{str(h.get('role', 'user')).upper()}: {h.get('content', '')}\n"
+    user = f"Current downloads:\n{_snapshot()}\n\n{convo}USER: {message}"
+    out = client.call_json("smart", _SYSTEM, user, _SCHEMA, max_tokens=1024)
+    actions = [_run_action(a) for a in (out.get("actions") or [])]
+    return {"reply": out.get("reply", ""), "actions": actions}
