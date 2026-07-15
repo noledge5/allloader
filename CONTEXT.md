@@ -1,17 +1,15 @@
 # Cove
 
-Cove is a self-hosted **home media center that also acquires media** — a Plex/Jellyfin
-replacement, not a downloader-with-preview (see ADR 0006). It has two halves:
+Cove is a self-hosted **media-acquisition tool** — the smart-downloader half that
+Plex/Jellyfin lack (see ADR 0007). It downloads files and videos from direct links,
+video sites, and streamhoster-backed pages (e.g. aniworld.to via VOE/Doodstream/
+Filemoon), and writes them onto a Synology NAS with **Plex/Jellyfin-standard naming**
+so those servers index and stream them. Playback, browsing, and transcoding are
+**Plex/Jellyfin's job, not Cove's**; Cove offers only a light direct-play preview of
+its *own* recent downloads.
 
-- **Acquisition** — downloads files and videos from direct links, video sites, and
-  streamhoster-backed pages (e.g. aniworld.to via VOE/Doodstream/Filemoon), deposits
-  them onto a Synology NAS. Sources are re-scanned manually (no auto-poll); the Planner
-  only decides *when* queued downloads run.
-- **Media center** — scans the whole NAS media library (existing files + Cove's
-  downloads) into a browsable **Library**, enriches it with online metadata + artwork,
-  and streams anything to a browser/phone/TV via on-the-fly transcoding.
-
-It runs on the user's Windows PC; the NAS is a storage target, not a host.
+Cove runs on the Synology itself as a Docker container. Sources are re-scanned manually
+(no auto-poll); the Planner only decides *when* queued downloads run.
 
 ## Language
 
@@ -68,31 +66,16 @@ _Avoid_: Scheduler is fine as a synonym; do not let "planner" imply auto-watchin
 A configured time span (and optional bandwidth cap) during which the **Planner**
 allows **Downloads** to run.
 
-**Library**:
-The browsable, streamable collection Cove presents — built by scanning one or more
-**Library roots** into **Media items** with metadata. Covers the user's existing NAS
-media *and* Cove's downloads (ADR 0006). Also used loosely for a top-level destination
-bucket (Anime/Movies/Files) that downloads land in; context disambiguates.
+**Library** (destination):
+A top-level bucket on the NAS that downloads land in (e.g. `Movies`, `TV`, `Anime`,
+`Files`), organized with **Plex/Jellyfin-standard naming** so those servers index it:
+`Movies/<Title> (Year)/<Title> (Year).ext`, `TV/<Show>/Season NN/<Show> - SxxEyy.ext`.
 
-**Library root**:
-A NAS folder Cove scans for media (e.g. `/volume1/Movies`, `/volume1/Anime`). One of
-several the user configures; the download destination buckets are library roots too.
-
-**Media item**:
-One catalogued thing in the **Library** — a movie, a show episode, or a music track —
-with a path, container/codec info, and (when matched) metadata: title, poster,
-season/episode, description.
-_Avoid_: Catalog entry (Catalog is retired in favor of Library + Media item).
-
-**Metadata agent**:
-The component that enriches **Media items** with posters/titles/episode data from an
-online source (TMDB/TVDB), falling back to filesystem-derived names when offline or
-unmatched.
-
-**Transcode / Stream**:
-Serving a **Media item** for playback. Cove direct-plays when the source codec/container
-is already device-compatible, and otherwise transcodes on the fly with ffmpeg so
-HEVC/MKV/4K play in any browser/phone/TV.
+**Catalog**:
+Cove's own view of the items it has downloaded, with a light **direct-play preview**
+(browser-native playback of compatible files; no server transcoding). Not a scan of the
+whole NAS — full library browsing/streaming is Plex/Jellyfin's job.
+_Avoid_: Library (that's the on-disk destination).
 
 **Intake**:
 Turning a natural-language request ("all of Frieren in German sub, 1080p") into a
@@ -111,9 +94,8 @@ step — enumerate episodes, pick a **Streamhoster**, or suggest an alternate ap
 - A **Streamhoster** embed is turned into a downloadable stream by a **Resolver**
 - A **Batch** expands a **Source** re-scan / episode range / pasted list into many **Downloads**
 - The **Planner** decides when queued **Downloads** run; it does not discover items
-- A completed **Download** lands under a **Library root** and is picked up by the scan as a **Media item**
-- The library scan turns files under **Library roots** into **Media items**, which the **Metadata agent** enriches
-- Playing a **Media item** direct-plays or **Transcode**s it to the requesting device
+- A completed **Download** is written under a **Library** bucket with Plex/Jellyfin-standard naming, and appears in Cove's **Catalog**
+- Plex/Jellyfin index those **Library** buckets and handle all browsing/streaming/transcoding
 
 ## Example dialogue
 
