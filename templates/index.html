@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resume Download Manager</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Resume Download Manager</h1>
+  <p class="sub">Große Dateien laden, pausieren, fortsetzen — ohne Browser-Abbrüche.</p>
+</header>
+<main>
+  <div class="tabs">
+    <button type="button" class="tab active" data-mode="file">Datei</button>
+    <button type="button" class="tab" data-mode="video">Video</button>
+  </div>
+  <form id="add-form">
+    <input type="url" id="url" placeholder="Link einfügen (https://...)" required>
+    <div class="row">
+      <input type="text" id="output_dir" placeholder="Zielordner" value="{{ default_dir }}">
+      <input type="text" id="filename" placeholder="Dateiname (optional)" data-mode="file">
+    </div>
+    <input type="text" id="header" placeholder="Header (optional, z.B. Authorization: Bearer TOKEN)" data-mode="file">
+    <select id="quality" data-mode="video" hidden>
+      <option value="best">Beste verfügbare Qualität</option>
+      <option value="1080">Bis 1080p</option>
+      <option value="720">Bis 720p</option>
+      <option value="480">Bis 480p</option>
+    </select>
+    <label class="checkbox-row" data-mode="video" hidden>
+      <input type="checkbox" id="audio_only">
+      Nur Audio extrahieren (MP3)
+    </label>
+    <p class="hint" data-mode="video" hidden>
+      Funktioniert mit YouTube, Vimeo, TikTok, X/Twitter, Reddit, SoundCloud
+      und hunderten weiteren Seiten. Bitte nur Inhalte laden, an denen du die
+      Rechte hast (eigene Videos, gemeinfreie Inhalte, o.ä.).
+    </p>
+    <button type="submit" id="submit-btn">Download starten</button>
+  </form>
+  <ul id="tasks"></ul>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
