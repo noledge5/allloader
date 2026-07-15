@@ -1,0 +1,23 @@
+# Cove on Synology Container Manager (or any Docker host).
+#
+#   1. Copy .env.example to .env and set your paths / API key.
+#   2. Point the /nas volume at the share where downloads should land.
+#   3. docker compose up -d   →   open http://<nas-ip>:5100
+#
+services:
+  cove:
+    build: .
+    image: cove:latest
+    container_name: cove
+    restart: unless-stopped
+    ports:
+      - "${COVE_PORT:-5100}:5100"
+    environment:
+      # Claude features stay off until this is set (everything else works).
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      COVE_MAX_CONCURRENT: "${COVE_MAX_CONCURRENT:-3}"
+    volumes:
+      # Where finished downloads are written (Plex/Jellyfin read the same path).
+      - "${COVE_NAS_PATH:-/volume1/media}:/nas"
+      # Persistent state (the SQLite queue). Survives container recreation.
+      - "${COVE_CONFIG_PATH:-./config}:/config"

@@ -10,3 +10,4 @@ cove_state.sqlite3-*
 web/node_modules/
 web/dist/
 .env
+config/

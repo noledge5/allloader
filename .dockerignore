@@ -1,0 +1,14 @@
+.git
+.gitignore
+**/__pycache__/
+*.pyc
+web/node_modules
+web/dist
+config
+*.sqlite3
+*.sqlite3-*
+.env
+design
+docs
+README.md
+CONTEXT.md

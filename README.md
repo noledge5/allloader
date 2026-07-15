@@ -1,87 +1,98 @@
-# Resume Download Manager
+# Cove
 
-Lokale Web-App zum Herunterladen großer Dateien (z.B. 20+ GB Transformer-Modelle)
-mit Pause/Fortsetzen — läuft im Browser, kein Terminal nötig für die Bedienung.
-Zweiter Tab "Video" lädt Videos/Audio von YouTube, Vimeo, TikTok und hunderten
-weiteren Seiten (per yt-dlp).
+A self-hosted **media-acquisition** tool for your NAS. Cove downloads files and
+videos — resumable, scheduled, and queued — and drops them into a Plex/Jellyfin
+folder layout. Those apps do the playback; Cove does the getting. It runs as a
+single Docker container on a Synology (or any Docker host) and is reachable from
+any device on your LAN.
 
-## Installation (Windows)
+> Scope, in one line: **Cove = acquisition. Plex/Jellyfin = playback.** See
+> `docs/adr/0007-acquisition-tool-on-synology.md` for why.
 
-1. Python installieren: https://python.org/downloads — beim Installer unbedingt
-   **"Add python.exe to PATH"** anhaken.
-2. Diesen Ordner irgendwohin entpacken/kopieren.
-3. Doppelklick auf `start.bat`.
-4. Es öffnet sich automatisch ein Browser-Tab unter `http://127.0.0.1:5000`.
+## Features
 
-Beim ersten Start installiert `start.bat` automatisch die einzige Abhängigkeit
-(Flask). Danach reicht ein Doppelklick auf `start.bat` zum Starten.
+- **Resumable downloads** — large files (20 GB+ models, ISOs) resume after a
+  pause or a dropped connection via HTTP Range requests; nothing re-downloads.
+- **Video & audio** — yt-dlp behind the scenes, with a quality cap (best/4K/1080/720)
+  and mp4 preference for direct play. Bundled ffmpeg, no separate install.
+- **Sources** — save an origin (RSS feed, YouTube channel, watch folder,
+  aniworld series, direct link) and re-scan it on demand for new items.
+- **Streamhoster support** — enumerates aniworld-style episode pages and their
+  hosters (VOE, Doodstream, Filemoon…). Actual stream extraction goes through
+  pluggable **resolvers** plus a generic headless-browser fallback; Cove ships
+  **no per-host circumvention** (`docs/adr/0001-streamhoster-resolution.md`).
+- **Planner** — off-peak schedule grid and batch jobs so big pulls run overnight.
+- **Live progress** — a WebSocket pushes progress to every open device at once.
+- **Claude assistant** (optional) — natural-language intake ("grab this playlist
+  as audio"), a chat panel that drives the queue, failure triage, and title
+  cleanup. Tiered models (Haiku/Sonnet/Opus) with prompt caching
+  (`docs/adr/0002-claude-integration.md`). Everything works without it.
 
-Zum Beenden das schwarze Konsolenfenster schließen (oder Strg+C dort drücken).
+## Run it on Synology (Docker)
 
-## Benutzung
+1. Copy the repo onto the NAS (or clone it).
+2. `cp .env.example .env` and edit:
+   - `COVE_NAS_PATH` → the share where downloads should land (e.g.
+     `/volume1/media`), the *same* folder Plex/Jellyfin already watch.
+   - `ANTHROPIC_API_KEY` → optional, only for the Claude features.
+3. Build and start:
+   ```sh
+   docker compose up -d --build
+   ```
+4. Open `http://<nas-ip>:5100`.
 
-1. Download-Link in das obere Feld einfügen (bei Hugging Face: Rechtsklick auf
-   den Download-Button → "Link-Adresse kopieren", nicht direkt anklicken).
-2. Optional Zielordner und Dateinamen anpassen.
-3. Bei geschützten Downloads (z.B. gated Hugging-Face-Modelle) im Feld
-   "Header" z.B. `Authorization: Bearer hf_xxx` eintragen.
-4. "Download starten" klicken.
-5. Fortschritt, Geschwindigkeit und ETA werden live angezeigt.
-6. Jederzeit **Pause** klicken — die Teildatei bleibt liegen.
-7. **Fortsetzen** klickt genau da weiter, wo pausiert wurde (per HTTP-Range-
-   Request, es wird nichts neu heruntergeladen).
-8. Die Liste der Downloads wird automatisch gespeichert (`tasks_state.json`
-   neben `app.py`). Programm schließen, PC neu starten, `start.bat` erneut
-   starten: alle Downloads erscheinen wieder — Downloads, die gerade liefen,
-   werden **automatisch fortgesetzt**; pausierte bleiben pausiert, bis du
-   selbst auf Fortsetzen klickst.
+State (the download queue) lives in the `/config` volume and survives container
+recreation. There is no login — Cove is meant for your LAN only
+(`docs/adr/0003-lan-no-auth.md`).
 
-## Videos herunterladen
+## Run it for development
 
-Im Tab "Video" oben:
+Backend (Python 3.12):
+```sh
+pip install -r requirements.txt
+python -m playwright install chromium      # only needed for the headless resolver
+python -m cove                             # serves API on :5100
+```
 
-1. Link zu einem Video einfügen (Videoseite, nicht der rohe Dateilink) —
-   funktioniert mit YouTube, Vimeo, TikTok, X/Twitter, Reddit, SoundCloud,
-   Twitch-Clips und hunderten weiteren Seiten, die
-   [yt-dlp](https://github.com/yt-dlp/yt-dlp) unterstützt.
-2. Optional Zielordner anpassen, "Nur Audio extrahieren (MP3)" für reine
-   Tonspuren aktivieren.
-3. "Video herunterladen" klicken. Standardmäßig wird die beste verfügbare
-   Video- + Audioqualität geladen und automatisch zusammengeführt (das dafür
-   nötige ffmpeg ist mitgeliefert, keine separate Installation nötig).
-4. Pause/Fortsetzen/Abbrechen funktionieren wie bei normalen Downloads:
-   Pause beendet den laufenden Vorgang, Fortsetzen setzt am selben Punkt
-   wieder an (yt-dlp erkennt die bereits geladenen Teile selbst).
+Frontend (Node, dev-only — the container serves a prebuilt bundle):
+```sh
+cd web
+npm install
+npm run dev        # Vite dev server on :5173, proxies /api to :5100
+```
+To produce the bundle the backend serves: `npm run build` → `web/dist`.
 
-Bitte nur Inhalte herunterladen, an denen du die Rechte hast oder die die
-Nutzungsbedingungen der jeweiligen Seite erlauben (eigene Uploads, gemeinfreie
-oder frei lizenzierte Inhalte, etc.) — das liegt in deiner Verantwortung.
+Useful env vars (all optional; see `cove/config.py`): `COVE_NAS_BASE`,
+`COVE_DB`, `COVE_PORT`, `COVE_MAX_CONCURRENT`, `ANTHROPIC_API_KEY`,
+`COVE_MODEL_CHEAP` / `COVE_MODEL_SMART` / `COVE_MODEL_MAX`.
 
-## Wie es funktioniert
+## Streamhosters & resolvers
 
-- `app.py` — Flask-Server, stellt die Web-Oberfläche und eine kleine JSON-API bereit.
-- `downloader.py` — der eigentliche Download-Engine: ein Python-Thread pro
-  Download, schreibt in `<datei>.part`, prüft bei jedem Chunk ob pausiert/
-  abgebrochen wurde, öffnet bei Fortsetzen die Verbindung per `Range`-Header
-  neu an exakt der Byte-Position der Teildatei.
-- Bricht die Verbindung selbst ab (Netzwerkfehler, Server-Timeout), versucht
-  der Download automatisch mit steigender Wartezeit erneut weiterzumachen —
-  ganz ohne dass du eingreifen musst.
+Cove enumerates episodes and hosters but does not include per-host stream
+extraction. To resolve a given hoster to a playable URL, drop a resolver plugin
+into `cove/resolvers/plugins/` (or a folder named in `$COVE_RESOLVER_PLUGINS`) —
+see `cove/resolvers/plugins/README.md`. If no plugin matches, a headless Chromium
+sniffs the page's network traffic for a stream URL as a best-effort fallback.
 
-## Persistenz
+## Layout
 
-- `tasks_state.json` (im selben Ordner wie `app.py`) speichert URL, Zielordner,
-  Dateiname, Header und Status jedes Downloads. Wird bei jeder Statusänderung
-  und alle paar Sekunden während des Ladens aktualisiert.
-- Beim Start liest die App diese Datei: Downloads mit Status "lädt" werden
-  automatisch fortgesetzt (die Bytes stehen ja schon in der `.part`-Datei),
-  "pausiert"/"Fehler" bleiben so liegen, "fertig" bleibt als Verlauf stehen,
-  "abgebrochen" wird nicht mehr gespeichert.
-- **Achtung:** Wenn du einen Auth-Header (z.B. `Authorization: Bearer ...`)
-  eingibst, landet der im Klartext in `tasks_state.json`. Für die eigene
-  Maschine unbedenklich, aber die Datei nicht weitergeben/hochladen.
+```
+cove/            FastAPI backend
+  engine/        download manager, resumable HTTP, yt-dlp video
+  adapters/      direct / youtube / rss / watchfolder / aniworld
+  resolvers/     streamhoster resolver plugin slot + headless fallback
+  ai/            Claude workflow layer (intake, chat, triage, naming)
+  api/routes.py  REST + WebSocket
+web/             React + Vite frontend (built into web/dist)
+docs/adr/        architecture decisions
+CONTEXT.md       domain glossary
+Dockerfile       multi-stage: build web bundle, then Python runtime
+docker-compose.yml
+```
 
-## Bekannte Grenzen
+## Architecture decisions
 
-- Braucht einen Server, der `Range`-Requests unterstützt (praktisch jeder
-  CDN/Hugging Face/GitHub Releases tut das).
+The `docs/adr/` folder records the significant calls: streamhoster handling
+(0001), Claude tiers (0002), LAN/no-auth (0003), design reconciliation (0004),
+the stack (0005), the media-center pivot and its reversal (0006 → superseded by
+0007, the acquisition-on-Synology scope).
