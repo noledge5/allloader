@@ -312,14 +312,23 @@ const SOURCE_TYPES = [
   { v: "watchfolder", label: "Watch Folder" },
   { v: "direct", label: "Direct Link" },
 ];
+const LANGUAGES = [
+  { v: "German Dub", label: "German Dub (German audio)" },
+  { v: "German Sub", label: "German Sub" },
+  { v: "English Sub", label: "English Sub" },
+  { v: "", label: "Any language" },
+];
 function Sources({ cove }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [detail, setDetail] = useState("");
   const [type, setType] = useState("aniworld");
+  const [language, setLanguage] = useState("German Dub");
   const add = async () => {
     if (!name.trim()) return;
-    await api.addSource({ name, type, detail });
+    // For aniworld, pass the language filter (strict: skip episodes without it).
+    const settings = type === "aniworld" ? { language, strict: true } : undefined;
+    await api.addSource({ name, type, detail, settings });
     setName(""); setDetail(""); setOpen(false); cove.refresh(); cove.flash("Source added");
   };
   return (
@@ -332,7 +341,7 @@ function Sources({ cove }) {
         <button onClick={() => setOpen(!open)} style={btn.ghost}><Svg d={I.plus} s={14} w={2.4} /> Add Source</button>
       </div>
       {open && (
-        <div style={{ background: C.card, border: `1px solid rgba(151,240,174,0.25)`, borderRadius: 10, padding: "18px 20px", marginBottom: 20, display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr auto", gap: 12, alignItems: "end" }}>
+        <div style={{ background: C.card, border: `1px solid rgba(151,240,174,0.25)`, borderRadius: 10, padding: "18px 20px", marginBottom: 20, display: "grid", gridTemplateColumns: type === "aniworld" ? "1fr 1.2fr 1fr 1fr auto" : "1fr 1.2fr 1fr auto", gap: 12, alignItems: "end" }}>
           <Field label="NAME"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Frieren" style={inp} /></Field>
           <Field label="URL OR PATH"><input value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="https://aniworld.to/… or /volume1/watch" style={inp} /></Field>
           <Field label="TYPE">
@@ -340,6 +349,13 @@ function Sources({ cove }) {
               {SOURCE_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
             </select>
           </Field>
+          {type === "aniworld" && (
+            <Field label="LANGUAGE">
+              <select value={language} onChange={(e) => setLanguage(e.target.value)} style={inp}>
+                {LANGUAGES.map((l) => <option key={l.v} value={l.v}>{l.label}</option>)}
+              </select>
+            </Field>
+          )}
           <button onClick={add} style={{ ...btn.primary, whiteSpace: "nowrap" }}>Add</button>
         </div>
       )}

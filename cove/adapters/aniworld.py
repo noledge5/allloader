@@ -23,7 +23,7 @@ _HOSTS = ("aniworld.to", "aniworld.", "s.to", "serienstream.")
 
 # Preferred streamhoster order and language default when a Source doesn't specify.
 DEFAULT_HOSTER_ORDER = ["voe", "filemoon", "vidoza", "doodstream", "streamtape"]
-DEFAULT_LANGUAGE = "German Sub"
+DEFAULT_LANGUAGE = "German Dub"   # German audio; strict by default (see enumerate)
 
 
 class AniworldAdapter(Adapter):
@@ -36,7 +36,11 @@ class AniworldAdapter(Adapter):
     def enumerate(self, target: str, settings: dict | None = None) -> list[Item]:
         settings = settings or {}
         order = [h.lower() for h in settings.get("hosters", DEFAULT_HOSTER_ORDER)]
-        language = settings.get("language", DEFAULT_LANGUAGE)
+        # Empty/"any" language = take whatever's offered. Otherwise, when `strict`
+        # (default), episodes that don't have the chosen language are skipped
+        # rather than silently falling back to another language.
+        language = settings.get("language", DEFAULT_LANGUAGE) or None
+        strict = settings.get("strict", True)
         quality = settings.get("quality", "best")
         library = settings.get("library", "Anime")
 
@@ -44,7 +48,7 @@ class AniworldAdapter(Adapter):
         items: list[Item] = []
         for ep_url in episodes:
             try:
-                item = self._episode_item(ep_url, order, language, quality, library)
+                item = self._episode_item(ep_url, order, language, quality, library, strict)
             except Exception:
                 item = None
             if item:
@@ -83,12 +87,12 @@ class AniworldAdapter(Adapter):
 
     # -- one episode -------------------------------------------------------
 
-    def _episode_item(self, ep_url, order, language, quality, library) -> Item | None:
+    def _episode_item(self, ep_url, order, language, quality, library, strict=True) -> Item | None:
         html = self._fetch(ep_url)
         soup = BeautifulSoup(html, "html.parser")
-        hosters = self._hosters(soup, language)
+        hosters = self._hosters(soup, language, strict)
         if not hosters:
-            return None
+            return None  # no host in the requested language (strict) -> skip episode
         chosen = self._choose(hosters, order)
         embed = self._resolve_redirect(self._base(ep_url), chosen["redirect"])
         season, episode = self._season_episode(ep_url)
@@ -107,7 +111,7 @@ class AniworldAdapter(Adapter):
                   "language": language, "host": chosen["host"]},
         )
 
-    def _hosters(self, soup, language) -> list[dict]:
+    def _hosters(self, soup, language, strict=True) -> list[dict]:
         """Extract [{host, lang, redirect}] from an episode page. Aniworld lists
         each hoster as a <li> carrying data-link-target (the /redirect/<id> path),
         a language key, and the hoster's display name."""
@@ -120,9 +124,13 @@ class AniworldAdapter(Adapter):
             host = (name_el.get_text(strip=True) or "").lower()
             lang_key = li.get("data-lang-key") or ""
             out.append({"host": host, "lang": self._lang_label(lang_key), "redirect": redirect})
-        # Prefer the requested language, but keep all as fallback.
+        if not language:
+            return out  # "any language" — no filtering
         preferred = [h for h in out if h["lang"] == language]
-        return preferred or out
+        if preferred:
+            return preferred
+        # No host in the requested language: skip (strict) or fall back to all.
+        return [] if strict else out
 
     def _choose(self, hosters, order) -> dict:
         def rank(h):
