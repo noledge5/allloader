@@ -4,4 +4,5 @@ uvicorn[standard]>=0.30
 anthropic>=0.40
 yt-dlp>=2024.1
 imageio-ffmpeg>=0.5
-feedparser>=6.0
+beautifulsoup4>=4.12
+playwright>=1.40   # generic headless resolver fallback (Chromium)

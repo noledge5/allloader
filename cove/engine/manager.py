@@ -92,22 +92,38 @@ class Manager:
             return
         dest_dir = d["dest_dir"]
 
+        # Streamhoster embeds are resolved to a concrete stream just-in-time, so
+        # links are as fresh as possible (ADR 0001 resolver layer).
+        url = d["url"]
+        if d.get("needs_resolve"):
+            from .. import resolvers
+            concrete = resolvers.resolve(url, d.get("resolver_hint"))
+            if not concrete:
+                db.update_download(
+                    download_id, status="failed",
+                    error=f"could not resolve {d.get('resolver_hint') or 'streamhoster'} "
+                          "— no plugin matched and the headless fallback found no stream",
+                )
+                self._broadcast({"type": "download", "id": download_id, "status": "failed"})
+                return
+            url = concrete
+
         def on_progress(info: dict):
             self._on_progress(download_id, info)
 
         if d["kind"] in ("video", "audio"):
             worker = VideoDownload(
-                d["url"], dest_dir,
+                url, dest_dir,
                 quality=(d.get("quality") or "best").replace("p", "") or "best",
                 audio_only=(d["kind"] == "audio"),
                 on_progress=on_progress,
             )
         else:
             import json
-            filename = d.get("filename") or _guess_name(d["url"])
+            filename = d.get("filename") or _guess_name(url)
             headers = json.loads(d.get("headers") or "{}")
             worker = HttpDownload(
-                d["url"], os.path.join(dest_dir, filename),
+                url, os.path.join(dest_dir, filename),
                 headers=headers, on_progress=on_progress,
             )
             db.update_download(download_id, filename=filename)

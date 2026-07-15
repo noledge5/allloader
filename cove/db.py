@@ -32,12 +32,14 @@ CREATE TABLE IF NOT EXISTS downloads (
     headers     TEXT,                           -- JSON extra request headers
     source_id   TEXT,
     batch_id    TEXT,
-    status      TEXT NOT NULL DEFAULT 'queued', -- queued|downloading|paused|completed|failed|canceled
-    total       INTEGER,
-    downloaded  INTEGER NOT NULL DEFAULT 0,
-    error       TEXT,
-    created_at  REAL NOT NULL,
-    updated_at  REAL NOT NULL
+    status        TEXT NOT NULL DEFAULT 'queued', -- queued|downloading|paused|completed|failed|canceled
+    total         INTEGER,
+    downloaded    INTEGER NOT NULL DEFAULT 0,
+    error         TEXT,
+    needs_resolve INTEGER NOT NULL DEFAULT 0,     -- url is a streamhoster embed to resolve first
+    resolver_hint TEXT,
+    created_at    REAL NOT NULL,
+    updated_at    REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sources (
@@ -82,10 +84,20 @@ def connect() -> sqlite3.Connection:
             _conn = sqlite3.connect(config.DB_PATH, check_same_thread=False)
             _conn.row_factory = sqlite3.Row
             _conn.executescript(SCHEMA)
+            _migrate(_conn)
             _conn.commit()
             if get_setting("schedule") is None:
                 set_setting("schedule", DEFAULT_SCHEDULE)
         return _conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after the first release, ignoring 'already exists'."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(downloads)")}
+    for name, decl in (("needs_resolve", "INTEGER NOT NULL DEFAULT 0"),
+                        ("resolver_hint", "TEXT")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE downloads ADD COLUMN {name} {decl}")
 
 
 def _q(sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -133,9 +145,10 @@ def insert_download(d: dict) -> None:
     _q(
         """INSERT INTO downloads
         (id,url,kind,title,filename,dest_dir,library,quality,headers,source_id,batch_id,
-         status,total,downloaded,error,created_at,updated_at)
+         status,total,downloaded,error,needs_resolve,resolver_hint,created_at,updated_at)
         VALUES (:id,:url,:kind,:title,:filename,:dest_dir,:library,:quality,:headers,
-                :source_id,:batch_id,:status,:total,:downloaded,:error,:created_at,:updated_at)""",
+                :source_id,:batch_id,:status,:total,:downloaded,:error,:needs_resolve,
+                :resolver_hint,:created_at,:updated_at)""",
         {
             "id": d["id"], "url": d["url"], "kind": d.get("kind", "file"),
             "title": d.get("title"), "filename": d.get("filename"),
@@ -145,6 +158,8 @@ def insert_download(d: dict) -> None:
             "source_id": d.get("source_id"), "batch_id": d.get("batch_id"),
             "status": d.get("status", "queued"), "total": d.get("total"),
             "downloaded": d.get("downloaded", 0), "error": d.get("error"),
+            "needs_resolve": 1 if d.get("needs_resolve") else 0,
+            "resolver_hint": d.get("resolver_hint"),
             "created_at": now, "updated_at": now,
         },
     )

@@ -353,6 +353,10 @@ function Sources({ cove }) {
               </div>
               <div style={{ fontSize: 12, color: C.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.detail}</div>
             </div>
+            <button onClick={async () => {
+              try { const r = await api.scanSource(s.id); cove.flash(`Queued ${r.queued} item${r.queued === 1 ? "" : "s"}`); cove.refresh(); }
+              catch (e) { cove.flash("Scan failed: " + e.message); }
+            }} style={{ ...btn.ghost, padding: "8px 14px", fontSize: 12 }}>Re-scan</button>
             <IconBtn onClick={async () => { await api.removeSource(s.id); cove.refresh(); }} d={I.trash} c={C.dim} big />
           </div>
         ))}

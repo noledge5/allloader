@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .. import db, nas
+from .. import adapters, db, nas
 from ..engine.manager import manager
 
 router = APIRouter(prefix="/api")
@@ -26,9 +26,18 @@ class NewDownload(BaseModel):
     quality: str | None = None
     library: str | None = None
     dest_rel: str | None = None
+    filename: str | None = None
     headers: dict | None = None
     source_id: str | None = None
     batch_id: str | None = None
+    needs_resolve: bool = False
+    resolver_hint: str | None = None
+
+
+class AnalyzeIn(BaseModel):
+    url: str
+    type: str | None = None      # force an adapter type, else auto-detect
+    settings: dict | None = None
 
 
 class ScheduleIn(BaseModel):
@@ -44,17 +53,89 @@ def list_downloads():
     return db.list_downloads()
 
 
+def _queue_item(url, kind="file", title=None, quality=None, library=None,
+                dest_rel=None, filename=None, headers=None, source_id=None,
+                batch_id=None, needs_resolve=False, resolver_hint=None):
+    did = uuid.uuid4().hex[:10]
+    dest_dir = nas.resolve_dest(library, dest_rel)
+    db.insert_download({
+        "id": did, "url": url, "kind": kind, "title": title,
+        "dest_dir": dest_dir, "library": library, "quality": quality,
+        "filename": filename, "headers": headers, "source_id": source_id,
+        "batch_id": batch_id, "needs_resolve": needs_resolve,
+        "resolver_hint": resolver_hint, "status": "queued",
+    })
+    return did
+
+
 @router.post("/downloads")
 def create_download(body: NewDownload):
-    did = uuid.uuid4().hex[:10]
-    dest_dir = nas.resolve_dest(body.library, body.dest_rel)
-    db.insert_download({
-        "id": did, "url": body.url, "kind": body.kind, "title": body.title,
-        "dest_dir": dest_dir, "library": body.library, "quality": body.quality,
-        "headers": body.headers, "source_id": body.source_id,
-        "batch_id": body.batch_id, "status": "queued",
-    })
-    return {"id": did}
+    return {"id": _queue_item(
+        body.url, body.kind, body.title, body.quality, body.library,
+        body.dest_rel, body.filename, body.headers, body.source_id,
+        body.batch_id, body.needs_resolve, body.resolver_hint,
+    )}
+
+
+# -- adapters: analyze a URL / scan a source -------------------------------
+
+@router.post("/analyze")
+def analyze(body: AnalyzeIn):
+    """Enumerate downloadable items from a URL (playlist, feed, aniworld series,
+    or a single link) without queuing them. Powers the New Download flow."""
+    Adapter = adapters.get_adapter(body.type) if body.type else adapters.detect(body.url)
+    if not Adapter:
+        raise HTTPException(400, "no adapter for this URL")
+    try:
+        items = Adapter().enumerate(body.url, body.settings or {})
+    except Exception as e:
+        raise HTTPException(502, f"could not analyze: {e}")
+    return {"adapter": Adapter.type, "items": [i.to_dict() for i in items]}
+
+
+class QueueItems(BaseModel):
+    items: list[dict]
+
+
+@router.post("/queue")
+def queue_items(body: QueueItems):
+    """Queue a set of items previously returned by /analyze (or /sources/{id}/scan)."""
+    ids = []
+    for it in body.items:
+        ids.append(_queue_item(
+            it["url"], it.get("kind", "file"), it.get("title"), it.get("quality"),
+            it.get("library"), it.get("dest_rel"), it.get("filename"),
+            needs_resolve=it.get("needs_resolve", False),
+            resolver_hint=it.get("resolver_hint"),
+        ))
+    return {"queued": len(ids), "ids": ids}
+
+
+@router.post("/sources/{sid}/scan")
+def scan_source(sid: str):
+    """Re-scan a Source and queue everything it finds (manual, per ADR 0004)."""
+    import json
+    s = db.row("SELECT * FROM sources WHERE id=?", (sid,))
+    if not s:
+        raise HTTPException(404, "source not found")
+    Adapter = adapters.get_adapter(s["type"]) or adapters.detect(s["detail"] or "")
+    settings = {}
+    try:
+        settings = json.loads(s.get("settings") or "{}")
+    except ValueError:
+        pass
+    try:
+        items = Adapter().enumerate(s["detail"] or "", settings)
+    except Exception as e:
+        db._q("UPDATE sources SET status=?, last_scan=? WHERE id=?", ("error", time.time(), sid))
+        raise HTTPException(502, f"scan failed: {e}")
+    ids = [_queue_item(
+        it.url, it.kind, it.title, it.quality, it.library or settings.get("library"),
+        it.dest_rel, it.filename, source_id=sid,
+        needs_resolve=it.needs_resolve, resolver_hint=it.resolver_hint,
+    ) for it in items]
+    db._q("UPDATE sources SET status=?, last_scan=? WHERE id=?", ("idle", time.time(), sid))
+    return {"queued": len(ids)}
 
 
 @router.post("/downloads/{did}/pause")

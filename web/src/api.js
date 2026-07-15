@@ -27,6 +27,8 @@ export const api = {
   listSources: () => req("GET", "/api/sources"),
   addSource: (b) => req("POST", "/api/sources", b),
   removeSource: (id) => req("DELETE", `/api/sources/${id}`),
+  scanSource: (id) => req("POST", `/api/sources/${id}/scan`),
+  analyze: (b) => req("POST", "/api/analyze", b),
 
   listBatches: () => req("GET", "/api/batches"),
   addBatch: (b) => req("POST", "/api/batches", b),
