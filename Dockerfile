@@ -34,8 +34,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
 WORKDIR /app
 
 COPY requirements.txt ./
+# Chromium powers only the optional headless resolver (ADR 0001); don't let a
+# hiccup fetching it (e.g. under arm64 emulation) fail the whole image build.
 RUN pip install -r requirements.txt \
-    && python -m playwright install --with-deps chromium
+    && (python -m playwright install --with-deps chromium \
+        || echo "WARN: chromium not installed; headless resolver disabled")
 
 # Node + the globally-installed Claude Code CLI (authenticates at runtime via
 # CLAUDE_CODE_OAUTH_TOKEN — the user's subscription). node:22 and python:3.12
