@@ -68,8 +68,34 @@ def _queue_item(url, kind="file", title=None, quality=None, library=None,
     return did
 
 
+# Adapters that expand one pasted URL into many items (a series/feed) rather than
+# being a single downloadable link. Pasting one of these into New Download should
+# enumerate it, not try to download the page itself.
+_ENUMERATING = ("aniworld", "rss")
+
+
 @router.post("/downloads")
 def create_download(body: NewDownload):
+    # A series/feed link (e.g. aniworld) is enumerated into its episodes; anything
+    # else is queued as the single download the user asked for.
+    if not body.needs_resolve:
+        Adapter = adapters.detect(body.url)
+        if Adapter and getattr(Adapter, "type", "") in _ENUMERATING:
+            settings = {"quality": body.quality or "best"}
+            if body.library:
+                settings["library"] = body.library
+            try:
+                items = Adapter().enumerate(body.url, settings)
+            except Exception as e:
+                raise HTTPException(502, f"could not read {Adapter.type}: {e}")
+            if items:
+                ids = [_queue_item(
+                    it.url, it.kind, it.title, it.quality,
+                    it.library or body.library, it.dest_rel, it.filename,
+                    needs_resolve=it.needs_resolve, resolver_hint=it.resolver_hint,
+                ) for it in items]
+                return {"queued": len(ids), "ids": ids}
+
     return {"id": _queue_item(
         body.url, body.kind, body.title, body.quality, body.library,
         body.dest_rel, body.filename, body.headers, body.source_id,
