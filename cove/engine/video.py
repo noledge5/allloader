@@ -26,12 +26,18 @@ class _Canceled(Exception):
 
 
 class VideoDownload:
-    def __init__(self, url, dest_dir, quality="best", audio_only=False, on_progress=None):
+    def __init__(self, url, dest_dir, quality="best", audio_only=False,
+                 on_progress=None, name=None, referer=None):
         self.url = url
         self.dest_dir = dest_dir
         self.quality = quality            # "best" | "2160" | "1080" | "720"
         self.audio_only = audio_only
         self.on_progress = on_progress or (lambda info: None)
+        # Desired output base name (e.g. Plex "Show - S01E02"); yt-dlp appends the
+        # real extension. None -> fall back to the video's own title.
+        self.name = name
+        # Some streamhoster CDNs 403 an .m3u8 without the embed's Referer.
+        self.referer = referer
         self.filename = None
         self._pause = threading.Event()
         self._cancel = threading.Event()
@@ -62,8 +68,13 @@ class VideoDownload:
 
     def run(self):
         os.makedirs(self.dest_dir, exist_ok=True)
+        if self.name:
+            # Literal name (escape % so yt-dlp doesn't read it as a field), Plex-style.
+            base = self.name.replace("%", "%%") + ".%(ext)s"
+        else:
+            base = "%(title).200s [%(id)s].%(ext)s"
         opts = {
-            "outtmpl": os.path.join(self.dest_dir, "%(title).200s [%(id)s].%(ext)s"),
+            "outtmpl": os.path.join(self.dest_dir, base),
             "progress_hooks": [self._hook],
             "continuedl": True,
             "noplaylist": True,
@@ -76,6 +87,8 @@ class VideoDownload:
         }
         if FFMPEG_PATH:
             opts["ffmpeg_location"] = FFMPEG_PATH
+        if self.referer:
+            opts["http_headers"] = {"Referer": self.referer}
 
         h = "" if self.quality == "best" else f"[height<=?{self.quality}]"
         if self.audio_only:

@@ -15,6 +15,10 @@ from pathlib import Path
 
 from .base import Resolver
 from .headless import HeadlessResolver
+from .voe import VoeResolver
+
+# Built-in host-specific resolvers, tried before the generic headless fallback.
+_BUILTINS = [VoeResolver]
 
 _PLUGIN_DIRS = [
     Path(__file__).resolve().parent / "plugins",
@@ -51,8 +55,8 @@ def resolvers() -> list[Resolver]:
     global _plugins
     if not _loaded:
         _plugins = _load_plugins()
-    # Plugins first (user-supplied, host-specific), headless fallback last.
-    return _plugins + [HeadlessResolver()]
+    # Built-in host resolvers (VOE) and user plugins first, headless fallback last.
+    return [b() for b in _BUILTINS] + _plugins + [HeadlessResolver()]
 
 
 def resolve(embed_url: str, hint: str | None = None) -> str | None:

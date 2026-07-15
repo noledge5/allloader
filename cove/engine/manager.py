@@ -86,53 +86,79 @@ class Manager:
 
     # -- per-download worker ----------------------------------------------
 
+    def _run_worker(self, download_id: str, worker):
+        """Register a worker so pause/cancel can reach it, run it, and return
+        its final status. Used for the primary attempt and the resolver fallback."""
+        with self._lock:
+            self._workers[download_id] = worker
+        try:
+            return worker.run()
+        finally:
+            with self._lock:
+                self._workers.pop(download_id, None)
+
+    def _resolve_embed(self, url: str, hint):
+        """Best-effort resolver-chain lookup (plugins + headless), never raises."""
+        try:
+            from .. import resolvers
+            return resolvers.resolve(url, hint)
+        except Exception:
+            return None
+
     def _run(self, download_id: str):
         d = db.get_download(download_id)
         if not d:
             return
         dest_dir = d["dest_dir"]
-
-        # Streamhoster embeds are resolved to a concrete stream just-in-time, so
-        # links are as fresh as possible (ADR 0001 resolver layer).
+        kind = d["kind"]
         url = d["url"]
-        if d.get("needs_resolve"):
-            from .. import resolvers
-            concrete = resolvers.resolve(url, d.get("resolver_hint"))
-            if not concrete:
-                db.update_download(
-                    download_id, status="failed",
-                    error=f"could not resolve {d.get('resolver_hint') or 'streamhoster'} "
-                          "— no plugin matched and the headless fallback found no stream",
-                )
-                self._broadcast({"type": "download", "id": download_id, "status": "failed"})
-                return
-            url = concrete
+        needs_resolve = bool(d.get("needs_resolve"))
 
         def on_progress(info: dict):
             self._on_progress(download_id, info)
 
-        if d["kind"] in ("video", "audio"):
-            worker = VideoDownload(
-                url, dest_dir,
-                quality=(d.get("quality") or "best").replace("p", "") or "best",
-                audio_only=(d["kind"] == "audio"),
-                on_progress=on_progress,
-            )
+        if kind in ("video", "audio"):
+            quality = (d.get("quality") or "best").replace("p", "") or "best"
+            audio_only = kind == "audio"
+            name = d.get("filename")
+
+            def make_video(u, referer=None):
+                return VideoDownload(u, dest_dir, quality=quality,
+                                     audio_only=audio_only, name=name,
+                                     referer=referer, on_progress=on_progress)
+
+            # First try yt-dlp on the URL directly (covers YouTube etc.). Most
+            # aniworld streamhosters (VOE, Doodstream, Filemoon) are NOT supported
+            # by yt-dlp, so on failure fall back to Cove's resolver chain — the
+            # built-in VOE resolver, then user plugins, then the headless sniffer
+            # (ADR 0001/0008) — and download whatever concrete stream it yields,
+            # passing the embed as Referer so the CDN doesn't 403.
+            status = self._run_worker(download_id, make_video(url))
+            if status == "failed" and needs_resolve:
+                concrete = self._resolve_embed(url, d.get("resolver_hint"))
+                if concrete and concrete != url:
+                    status = self._run_worker(download_id, make_video(concrete, referer=url))
         else:
+            # Non-video streamhoster embeds still resolve to a bare URL first.
+            if needs_resolve:
+                concrete = self._resolve_embed(url, d.get("resolver_hint"))
+                if not concrete:
+                    db.update_download(
+                        download_id, status="failed",
+                        error=f"could not resolve {d.get('resolver_hint') or 'streamhoster'} "
+                              "— yt-dlp had no extractor and the headless fallback found no stream",
+                    )
+                    self._broadcast({"type": "download", "id": download_id, "status": "failed"})
+                    return
+                url = concrete
             import json
             filename = d.get("filename") or _guess_name(url)
             headers = json.loads(d.get("headers") or "{}")
-            worker = HttpDownload(
+            db.update_download(download_id, filename=filename)
+            status = self._run_worker(download_id, HttpDownload(
                 url, os.path.join(dest_dir, filename),
                 headers=headers, on_progress=on_progress,
-            )
-            db.update_download(download_id, filename=filename)
-
-        with self._lock:
-            self._workers[download_id] = worker
-        status = worker.run()
-        with self._lock:
-            self._workers.pop(download_id, None)
+            ))
 
         # A 'paused'/'canceled' final status is set by _on_progress; only persist
         # terminal completed/failed here (queued for resume handled by resume()).
