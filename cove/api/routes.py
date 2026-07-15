@@ -3,10 +3,12 @@ schedule, NAS browse, catalog). Adapters and the Claude layer arrive in later
 phases; the create-download endpoint already accepts direct URLs and video URLs.
 """
 
+import os
 import time
 import uuid
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import db, nas
@@ -85,6 +87,20 @@ def remove(did: str):
 @router.get("/catalog")
 def catalog():
     return db.list_downloads(["completed"])
+
+
+@router.get("/downloads/{did}/file")
+def download_file(did: str):
+    """Serve a completed download for the direct-play preview. FileResponse
+    honors HTTP Range, so the browser can seek/scrub. No transcoding.
+    """
+    d = db.get_download(did)
+    if not d or d["status"] != "completed" or not d.get("filename"):
+        raise HTTPException(status_code=404, detail="not available")
+    path = os.path.join(d["dest_dir"], d["filename"])
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="file missing")
+    return FileResponse(path, filename=d["filename"])
 
 
 # -- sources ---------------------------------------------------------------
