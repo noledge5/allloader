@@ -14,9 +14,10 @@ downloads run.
 The application itself (product name).
 
 **Adapter**:
-A pluggable component that knows how to extract downloadable media from one kind of
-site (aniworld.to, YouTube, direct link), plus that site's settings — preferred
-streamhoster order, language, credentials.
+The pluggable extractor behind a **Source** type — it knows how to enumerate and pull
+downloadable media from that kind of origin (aniworld/streamhoster page, RSS feed,
+YouTube channel, watch-folder, direct link), plus that type's settings (preferred
+streamhoster order, language, credentials).
 _Avoid_: Extractor (reserved for the underlying yt-dlp mechanism), Plugin.
 
 **Streamhoster**:
@@ -31,15 +32,18 @@ and a built-in generic headless-browser fallback that captures the stream a play
 requests. Cove does not ship per-host deobfuscation resolvers.
 _Avoid_: Extractor.
 
-**Series**:
-A show the user has saved in Cove (typically an aniworld title). Remembered for
-organization, quick re-open, and manual "re-scan for episodes" — NOT automatically
-polled. Served by exactly one **Adapter**.
-_Avoid_: Subscription (implies auto-updating, which Cove does not do), show, watchlist.
-
 **Source**:
-Umbrella term for the two things "manage sources" covers: **Adapters** (how Cove
-extracts) and saved **Series** (what the user has added). Not a single entity.
+A saved origin Cove can enumerate downloadable items from and **re-scan on demand** —
+never auto-polled. Has a type shown on the Sources screen: aniworld/streamhoster
+series, RSS feed, YouTube channel, watch-folder, or direct link. Each Source is served
+by exactly one **Adapter**. (The design's per-Source "check interval" is intentionally
+dropped — see Flagged ambiguities.)
+_Avoid_: Feed (implies auto-polling), subscription.
+
+**Series**:
+The show an aniworld/streamhoster-type **Source** targets; re-scanning that Source
+enumerates its episodes into **Downloads**.
+_Avoid_: Subscription, watchlist.
 
 **Download**:
 The unit of work — one file being fetched, with a state (queued, running, paused,
@@ -81,24 +85,26 @@ step — enumerate episodes, pick a **Streamhoster**, or suggest an alternate ap
 
 ## Relationships
 
-- An **Adapter** enumerates media on a page and picks one of several **Streamhosters** in a preferred order
+- A **Source** has a type and is served by exactly one **Adapter**; the user re-scans it on demand (no auto-poll)
+- An aniworld/streamhoster **Adapter** enumerates episodes and picks one of several **Streamhosters** in a preferred order
 - A **Streamhoster** embed is turned into a downloadable stream by a **Resolver**
-- A **Series** is served by exactly one **Adapter**; a manual re-scan enumerates its episodes
-- A **Batch** expands a **Series** / range / list into many **Downloads**
-- The **Planner** decides when queued **Downloads** run; it does not discover episodes
+- A **Batch** expands a **Source** re-scan / episode range / pasted list into many **Downloads**
+- The **Planner** decides when queued **Downloads** run; it does not discover items
 - The **Catalog** indexes finished **Downloads** under **Library** roots
 
 ## Example dialogue
 
-> **Dev:** "When you re-scan a **Series** and it finds 12 episodes, what runs them?"
+> **Dev:** "When you re-scan an aniworld **Source** and it finds 12 episodes, what runs them?"
 > **User:** "That's a **Batch** — it makes 12 **Downloads**. The **Planner** just holds them until my overnight **Schedule window**."
 > **Dev:** "And if the **Resolver** can't crack the **Streamhoster** for episode 7?"
 > **User:** "That one **Download** goes to a failed state; the other 11 still run."
 
 ## Flagged ambiguities
 
-- "source" was used for the whole management area. Resolved: umbrella over **Adapter**
-  (how we extract, swappable) and **Series** (what you saved, stable). Prefer the specific term.
-- "Subscription" rejected: it implied automatic new-episode watching, which Cove does
-  NOT do. Use **Series**; discovery is always a manual re-scan.
-- "planner" scoped to scheduling only (when **Downloads** run), never episode discovery.
+- "source" now maps to the design's **Sources** screen: a typed, saved origin (aniworld,
+  RSS, YouTube, watch-folder, direct link) served by one **Adapter**. It is not an
+  umbrella over Adapters + Series any more.
+- **Auto-polling declined.** The design shows a per-Source "check interval"; we do NOT
+  build it. Sources are re-scanned manually; the **Planner** only schedules *when*
+  queued **Downloads** run, never *discovery*.
+- "Subscription" rejected: implied automatic watching, which Cove does not do.

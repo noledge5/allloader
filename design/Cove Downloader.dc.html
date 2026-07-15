@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Serif:ital,wght@0,400;0,600;0,700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+    @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    @keyframes scanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(151,240,174,0.18); border-radius: 8px; }
+    a { color: #97f0ae; text-decoration: none; }
+    a:hover { color: #a5ffbc; text-decoration: underline; }
+  </style>
+</helmet>
+
+<div style="display:flex;height:100vh;width:100%;background:#0c0f0e;color:#e1e3e2;font-family:'Plus Jakarta Sans',system-ui,sans-serif;overflow:hidden;position:relative">
+
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <aside style="{{ sidebarStyle }}">
+    <div style="height:70px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid rgba(117,119,119,0.18);flex-shrink:0">
+      <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#0f3d24 0%,#1c5c39 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px rgba(151,240,174,0.25)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#97f0ae" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M6 11l6 6 6-6"/><path d="M5 21h14"/></svg>
+      </div>
+      <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="font-family:'Noto Serif',serif;font-weight:700;font-size:19px;letter-spacing:-0.02em;color:#f2f4f2">Cove</div>
+      </sc-if>
+    </div>
+
+    <nav style="flex:1;padding:16px 12px;overflow-y:auto">
+      <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="4">
+        <div onClick="{{ item.onClick }}" style="{{ item.style }}" title="{{ item.label }}">
+          <span style="{{ item.iconWrapStyle }}">
+            <sc-if value="{{ item.isDashboard }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></sc-if>
+            <sc-if value="{{ item.isLibrary }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M16 3v18"/></svg></sc-if>
+            <sc-if value="{{ item.isSources }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l1.93-1.93a5 5 0 00-7.07-7.07L10.5 5.5"/><path d="M14 11a5 5 0 00-7.07 0L5 12.93a5 5 0 007.07 7.07L13.5 18.5"/></svg></sc-if>
+            <sc-if value="{{ item.isPlanner }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="15" cy="15" r="3.2"/><path d="M15 13.6V15l1 .8"/></svg></sc-if>
+          </span>
+          <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}"><span>{{ item.label }}</span></sc-if>
+          <sc-if value="{{ item.badge }}">
+            <span style="margin-left:auto;background:rgba(151,240,174,0.16);color:#97f0ae;font-size:10.5px;font-weight:800;padding:2px 6px;border-radius:99px;min-width:16px;text-align:center">{{ item.badge }}</span>
+          </sc-if>
+        </div>
+      </sc-for>
+    </nav>
+
+    <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:12px;border-top:1px solid rgba(117,119,119,0.18);flex-shrink:0">
+        <div style="background:#161a19;border-radius:10px;padding:12px 13px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00caeb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="1.5"/><rect x="2" y="14" width="20" height="7" rx="1.5"/><circle cx="6" cy="6.5" r=".6" fill="#00caeb"/><circle cx="6" cy="17.5" r=".6" fill="#00caeb"/></svg>
+            <span style="font-size:11.5px;font-weight:700;color:#e1e3e2">Synology DS920+</span>
+            <span style="width:6px;height:6px;border-radius:50%;background:#97f0ae;margin-left:auto;box-shadow:0 0 0 2px rgba(151,240,174,0.18)"></span>
+          </div>
+          <div style="height:5px;border-radius:99px;background:#232b27;overflow:hidden">
+            <div style="height:100%;width:52%;background:linear-gradient(90deg,#006a36,#97f0ae);border-radius:99px"></div>
+          </div>
+          <div style="font-size:10.5px;color:#757777;display:flex;justify-content:space-between"><span>6.2 TB used</span><span>12 TB</span></div>
+        </div>
+      </div>
+    </sc-if>
+    <button onClick="{{ toggleSidebar }}" style="position:absolute;top:26px;right:-11px;width:22px;height:22px;border-radius:50%;background:#1e2421;border:1px solid rgba(117,119,119,0.3);color:#9b9d9d;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="{{ collapseArrowStyle }}"><path d="M15 6l-6 6 6 6"/></svg>
+    </button>
+  </aside>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden">
+
+    <!-- TOPBAR -->
+    <div style="height:68px;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 28px;border-bottom:1px solid rgba(117,119,119,0.18);background:rgba(12,15,14,0.7);backdrop-filter:blur(6px)">
+      <div style="position:relative;flex:1;max-width:420px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#757777" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:13px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input value="{{ searchValue }}" onInput="{{ onSearchInput }}" placeholder="Search library, sources, downloads…" style="width:100%;background:#161a19;border:1.5px solid rgba(117,119,119,0.22);border-radius:8px;padding:10px 14px 10px 36px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none"/>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        <div style="{{ liveBadgeStyle }}">
+          <span style="width:6px;height:6px;border-radius:50%;background:#97f0ae;animation:pulseDot 1.6s ease-in-out infinite"></span>
+          {{ activeCountLabel }}
+        </div>
+        <button onClick="{{ openAddModal }}" style="display:flex;align-items:center;gap:7px;padding:10px 18px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(0,106,54,0.35)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New Download
+        </button>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div style="flex:1;overflow-y:auto">
+
+      <!-- ═══ DASHBOARD ═══ -->
+      <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:30px 32px 60px;max-width:1300px;animation:fadeUp .3s ease">
+          <div style="margin-bottom:26px">
+            <h1 style="font-family:'Noto Serif',serif;font-size:27px;font-weight:700;letter-spacing:-0.02em;color:#f2f4f2;margin:0 0 4px">{{ greeting }}</h1>
+            <p style="font-size:13px;color:#757777;margin:0">{{ todayLabel }}</p>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:32px">
+            <sc-for list="{{ statCards }}" as="s" hint-placeholder-count="4">
+              <div style="background:#161a19;border-radius:8px;padding:18px 20px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;transition:transform .3s cubic-bezier(0.4,0,0.2,1),box-shadow .3s cubic-bezier(0.4,0,0.2,1)">
+                <div>
+                  <div style="font-size:10.5px;font-weight:700;color:#757777;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">{{ s.label }}</div>
+                  <div style="font-family:'Noto Serif',serif;font-size:28px;font-weight:700;letter-spacing:-0.02em;color:{{ s.color }}">{{ s.value }}</div>
+                </div>
+                <div style="width:40px;height:40px;border-radius:8px;background:{{ s.bg }};display:flex;align-items:center;justify-content:center;color:{{ s.color }};flex-shrink:0">{{ s.iconChar }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:#757777;text-transform:uppercase;letter-spacing:.08em">Continue Downloading</div>
+          </div>
+
+          <sc-if value="{{ hasActiveDownloads }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:36px">
+              <sc-for list="{{ activeDownloads }}" as="d" hint-placeholder-count="2">
+                <div style="background:#161a19;border-radius:10px;overflow:hidden;border:1px solid rgba(117,119,119,0.14)">
+                  <div style="height:110px;position:relative;background:{{ d.gradient }};display:flex;align-items:center;justify-content:center;overflow:hidden">
+                    <div style="{{ d.scanlineStyle }}"></div>
+                    <div style="{{ d.typeIconWrap }}">{{ d.typeIcon }}</div>
+                    <div style="position:absolute;top:8px;right:8px;{{ d.statusPillStyle }}">{{ d.statusLabel }}</div>
+                  </div>
+                  <div style="padding:13px 15px 15px">
+                    <div style="font-size:13.5px;font-weight:700;color:#e1e3e2;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.title }}</div>
+                    <div style="font-size:11.5px;color:#757777;margin-bottom:10px">{{ d.meta }}</div>
+                    <div style="height:5px;border-radius:99px;background:#232b27;overflow:hidden;margin-bottom:8px">
+                      <div style="{{ d.barStyle }}"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                      <span style="font-size:11px;color:#9b9d9d">{{ d.progressLabel }}</span>
+                      <div style="display:flex;gap:6px">
+                        <button onClick="{{ d.onToggle }}" style="width:26px;height:26px;border-radius:6px;border:none;background:#1e2421;color:#e1e3e2;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">{{ d.toggleIcon }}</button>
+                        <button onClick="{{ d.onCancel }}" style="width:26px;height:26px;border-radius:6px;border:none;background:#1e2421;color:#b94040;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:#757777;text-transform:uppercase;letter-spacing:.08em">Queued</div>
+          </div>
+          <div style="background:#161a19;border-radius:8px;overflow:hidden;margin-bottom:36px">
+            <sc-for list="{{ queuedDownloads }}" as="d" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid rgba(117,119,119,0.12)">
+                <span style="color:#757777">{{ d.typeIconSmall }}</span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;color:#e1e3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.title }}</div>
+                  <div style="font-size:11px;color:#757777">{{ d.meta }}</div>
+                </div>
+                <span style="font-size:10.5px;font-weight:700;color:#9b9d9d;background:#1e2421;padding:3px 9px;border-radius:99px;text-transform:uppercase;letter-spacing:.05em">Queued</span>
+                <button onClick="{{ d.onCancel }}" style="width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:#757777;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noQueued }}"><div style="padding:22px 18px;font-size:12.5px;color:#757777">Nothing queued right now.</div></sc-if>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:#757777;text-transform:uppercase;letter-spacing:.08em">Recently Finished</div>
+            <a href="javascript:void(0)" onClick="{{ goLibrary }}" style="font-size:12px;font-weight:700">View library →</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px">
+            <sc-for list="{{ recentLibrary }}" as="l" hint-placeholder-count="4">
+              <div onClick="{{ l.onOpen }}" style="cursor:pointer">
+                <div style="aspect-ratio:2/3;border-radius:8px;background:{{ l.gradient }};position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:9px;margin-bottom:7px">
+                  <span style="font-size:10px;color:rgba(255,255,255,0.85);font-weight:700;background:rgba(0,0,0,0.35);padding:2px 7px;border-radius:99px">{{ l.badge }}</span>
+                </div>
+                <div style="font-size:12.5px;font-weight:600;color:#e1e3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.title }}</div>
+                <div style="font-size:11px;color:#757777">{{ l.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ═══ LIBRARY ═══ -->
+      <sc-if value="{{ isLibrary }}">
+        <div style="padding:30px 32px 60px;max-width:1300px;animation:fadeUp .3s ease">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap">
+            <div>
+              <h1 style="font-family:'Noto Serif',serif;font-size:27px;font-weight:700;letter-spacing:-0.02em;color:#f2f4f2;margin:0 0 4px">Library</h1>
+              <p style="font-size:13px;color:#757777;margin:0">{{ libraryCountLabel }}</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <sc-for list="{{ libraryFilters }}" as="f" hint-placeholder-count="5">
+                <button onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px">
+            <sc-for list="{{ filteredLibrary }}" as="l" hint-placeholder-count="8">
+              <div onClick="{{ l.onOpen }}" style="cursor:pointer;{{ l.wrapStyle }}">
+                <div style="aspect-ratio:2/3;border-radius:10px;background:{{ l.gradient }};position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.35);margin-bottom:9px;transition:transform .25s cubic-bezier(0.4,0,0.2,1)">
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;background:rgba(0,0,0,0.4);transition:opacity .2s" class="__hoverplay">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+                  </div>
+                  <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.45);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px">{{ l.badge }}</div>
+                  <div style="position:absolute;bottom:0;left:0;right:0;padding:8px 9px;background:linear-gradient(to top,rgba(0,0,0,0.65),transparent)">
+                    <div style="font-size:9.5px;color:rgba(255,255,255,0.8)">{{ l.duration }}</div>
+                  </div>
+                </div>
+                <div style="font-size:13px;font-weight:600;color:#e1e3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.title }}</div>
+                <div style="font-size:11px;color:#757777">{{ l.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ noLibraryResults }}"><div style="padding:60px 0;text-align:center;color:#757777;font-size:13px">No items match this filter.</div></sc-if>
+        </div>
+      </sc-if>
+
+      <!-- ═══ SOURCES ═══ -->
+      <sc-if value="{{ isSources }}">
+        <div style="padding:30px 32px 60px;max-width:1100px;animation:fadeUp .3s ease">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+            <div>
+              <h1 style="font-family:'Noto Serif',serif;font-size:27px;font-weight:700;letter-spacing:-0.02em;color:#f2f4f2;margin:0 0 4px">Sources</h1>
+              <p style="font-size:13px;color:#757777;margin:0">Feeds, channels and watch-folders monitored for new content.</p>
+            </div>
+            <button onClick="{{ toggleAddSource }}" style="display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:8px;border:1.5px solid rgba(117,119,119,0.28);background:transparent;color:#e1e3e2;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Add Source
+            </button>
+          </div>
+
+          <sc-if value="{{ addSourceOpen }}">
+            <div style="background:#161a19;border:1px solid rgba(151,240,174,0.25);border-radius:10px;padding:18px 20px;margin-bottom:20px;display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:12px;align-items:end">
+              <div>
+                <div style="font-size:11px;font-weight:700;color:#9b9d9d;margin-bottom:6px">SOURCE URL OR PATH</div>
+                <input value="{{ newSourceUrl }}" onInput="{{ onNewSourceUrl }}" placeholder="https://… or /volume1/watch" style="width:100%;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:9px 11px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none"/>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:#9b9d9d;margin-bottom:6px">TYPE</div>
+                <select value="{{ newSourceType }}" onChange="{{ onNewSourceType }}" style="width:100%;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:9px 11px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none">
+                  <option value="rss">RSS Feed</option>
+                  <option value="youtube">YouTube Channel</option>
+                  <option value="watchfolder">Watch Folder</option>
+                  <option value="url">Direct Link</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:#9b9d9d;margin-bottom:6px">CHECK INTERVAL</div>
+                <select style="width:100%;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:9px 11px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none">
+                  <option>Every 15 min</option>
+                  <option>Hourly</option>
+                  <option>Daily</option>
+                </select>
+              </div>
+              <button onClick="{{ confirmAddSource }}" style="padding:9px 18px;border-radius:6px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Connect</button>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ sources }}" as="src" hint-placeholder-count="4">
+              <div style="background:#161a19;border-radius:10px;padding:16px 18px;display:flex;align-items:center;gap:16px;transition:box-shadow .3s cubic-bezier(0.4,0,0.2,1)">
+                <div style="{{ src.iconWrapStyle }}">{{ src.icon }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+                    <span style="font-size:14px;font-weight:700;color:#e1e3e2">{{ src.name }}</span>
+                    <span style="font-size:10px;font-weight:700;color:#9b9d9d;background:#1e2421;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.04em">{{ src.typeLabel }}</span>
+                  </div>
+                  <div style="font-size:12px;color:#757777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ src.detail }}</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                  <div style="{{ src.statusStyle }}">{{ src.statusLabel }}</div>
+                  <div style="font-size:11px;color:#757777;margin-top:4px">{{ src.lastCheck }}</div>
+                </div>
+                <button onClick="{{ src.onRemove }}" style="width:30px;height:30px;border-radius:7px;border:none;background:#1e2421;color:#757777;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+                </button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ═══ PLANNER ═══ -->
+      <sc-if value="{{ isPlanner }}">
+        <div style="padding:30px 32px 60px;max-width:1300px;animation:fadeUp .3s ease">
+          <div style="margin-bottom:22px">
+            <h1 style="font-family:'Noto Serif',serif;font-size:27px;font-weight:700;letter-spacing:-0.02em;color:#f2f4f2;margin:0 0 4px">Planner</h1>
+            <p style="font-size:13px;color:#757777;margin:0">Batch jobs &amp; scheduled off-peak windows.</p>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:22px;align-items:start">
+            <div style="background:#161a19;border-radius:10px;overflow:hidden">
+              <div style="padding:16px 18px;border-bottom:1px solid rgba(117,119,119,0.14);font-size:12.5px;font-weight:700;color:#e1e3e2;display:flex;justify-content:space-between;align-items:center">
+                <span>Batch Jobs</span>
+                <button onClick="{{ openBatchModal }}" style="padding:6px 12px;border-radius:6px;border:1.5px solid rgba(117,119,119,0.28);background:transparent;color:#e1e3e2;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">+ New batch</button>
+              </div>
+              <sc-for list="{{ batchJobs }}" as="b" hint-placeholder-count="3">
+                <div style="padding:14px 18px;border-bottom:1px solid rgba(117,119,119,0.1);display:flex;align-items:center;gap:14px">
+                  <div style="width:36px;height:36px;border-radius:8px;background:rgba(151,240,174,0.1);display:flex;align-items:center;justify-content:center;color:#97f0ae;flex-shrink:0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:700;color:#e1e3e2">{{ b.title }}</div>
+                    <div style="font-size:11.5px;color:#757777">{{ b.detail }}</div>
+                  </div>
+                  <span style="{{ b.statusStyle }}">{{ b.statusLabel }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:#161a19;border-radius:10px;padding:18px">
+              <div style="font-size:12.5px;font-weight:700;color:#e1e3e2;margin-bottom:14px">Off-peak schedule <span style="color:#757777;font-weight:500">— click a window to toggle</span></div>
+              <div style="display:grid;grid-template-columns:36px repeat(7,1fr);gap:4px;font-size:10.5px;color:#757777">
+                <div></div>
+                <sc-for list="{{ dayLabels }}" as="dl" hint-placeholder-count="7"><div style="text-align:center;font-weight:700">{{ dl }}</div></sc-for>
+                <sc-for list="{{ scheduleRows }}" as="row" hint-placeholder-count="4">
+                  <div style="display:contents">
+                    <div style="align-self:center">{{ row.label }}</div>
+                    <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="7">
+                      <div onClick="{{ cell.onClick }}" style="{{ cell.style }}"></div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:16px;margin-top:14px;font-size:11px;color:#757777">
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(151,240,174,0.35)"></span>Off-peak window</div>
+                <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#232b27"></span>Normal</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <!-- ══════════ CLAUDE ASSISTANT FAB ══════════ -->
+  <sc-if value="{{ claudeOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:60" onClick="{{ toggleClaude }}"></div>
+  </sc-if>
+
+  <div style="{{ claudePanelStyle }}">
+    <div style="height:64px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid rgba(117,119,119,0.18)">
+      <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#006a36,#00caeb);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+      </div>
+      <div>
+        <div style="font-size:13.5px;font-weight:700;color:#f2f4f2">Download Assistant</div>
+        <div style="font-size:10.5px;color:#757777">Powered by Claude</div>
+      </div>
+      <button onClick="{{ toggleClaude }}" style="margin-left:auto;width:28px;height:28px;border-radius:7px;border:none;background:#1e2421;color:#9b9d9d;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+      <sc-for list="{{ chatMessages }}" as="m" hint-placeholder-count="3">
+        <div style="{{ m.wrapStyle }}">
+          <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ chatThinking }}">
+        <div style="align-self:flex-start;background:#161a19;border-radius:12px 12px 12px 4px;padding:10px 14px;display:flex;gap:4px">
+          <span style="width:6px;height:6px;border-radius:50%;background:#757777;animation:pulseDot 1s infinite"></span>
+          <span style="width:6px;height:6px;border-radius:50%;background:#757777;animation:pulseDot 1s .2s infinite"></span>
+          <span style="width:6px;height:6px;border-radius:50%;background:#757777;animation:pulseDot 1s .4s infinite"></span>
+        </div>
+      </sc-if>
+    </div>
+    <div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap">
+      <sc-for list="{{ chatChips }}" as="chip" hint-placeholder-count="3">
+        <button onClick="{{ chip.onClick }}" style="padding:6px 11px;border-radius:99px;border:1px solid rgba(117,119,119,0.25);background:transparent;color:#9b9d9d;font-size:11px;cursor:pointer;font-family:inherit">{{ chip.label }}</button>
+      </sc-for>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid rgba(117,119,119,0.18);display:flex;gap:8px">
+      <input value="{{ chatInput }}" onInput="{{ onChatInput }}" onKeyDown="{{ onChatKeyDown }}" placeholder="Ask for downloads, fixes, organizing…" style="flex:1;background:#161a19;border:1.5px solid rgba(117,119,119,0.22);border-radius:8px;padding:10px 13px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none"/>
+      <button onClick="{{ sendChat }}" style="width:38px;height:38px;border-radius:8px;border:none;background:#006a36;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <sc-if value="{{ showFab }}" hint-placeholder-val="{{ true }}">
+    <button onClick="{{ toggleClaude }}" style="position:fixed;bottom:26px;right:26px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#006a36,#00caeb);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 30px rgba(0,106,54,0.4);z-index:55;padding:0">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+    </button>
+  </sc-if>
+
+  <!-- ══════════ ADD DOWNLOAD MODAL ══════════ -->
+  <sc-if value="{{ addModalOpen }}">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:80;padding:20px" onClick="{{ closeAddModalBg }}">
+      <div onClick="{{ stopProp }}" style="background:#161a19;border-radius:14px;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(117,119,119,0.15)">
+        <div style="padding:20px 24px;border-bottom:1px solid rgba(117,119,119,0.15);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-family:'Noto Serif',serif;font-size:19px;font-weight:700;color:#f2f4f2">New Download</div>
+          <button onClick="{{ closeAddModal }}" style="width:30px;height:30px;border-radius:8px;border:none;background:#1e2421;color:#9b9d9d;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div style="display:flex;gap:6px;padding:16px 24px 0">
+          <sc-for list="{{ addTabs }}" as="t" hint-placeholder-count="2">
+            <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ isUrlTab }}">
+          <div style="padding:20px 24px 26px">
+            <div style="font-size:11.5px;font-weight:700;color:#9b9d9d;margin-bottom:8px">PASTE A URL OR PLAYLIST LINK</div>
+            <div style="display:flex;gap:8px;margin-bottom:16px">
+              <input value="{{ urlInput }}" onInput="{{ onUrlInput }}" placeholder="https://…/watch?v= or playlist link" style="flex:1;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:8px;padding:11px 13px;color:#e1e3e2;font-size:13.5px;font-family:inherit;outline:none"/>
+              <button onClick="{{ analyzeUrl }}" style="padding:11px 18px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">{{ analyzeLabel }}</button>
+            </div>
+
+            <sc-if value="{{ urlAnalyzed }}">
+              <div style="background:#0c0f0e;border:1px solid rgba(151,240,174,0.22);border-radius:10px;padding:16px;animation:fadeUp .3s ease">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#97f0ae" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+                  <span style="font-size:12px;font-weight:700;color:#97f0ae">Claude found {{ analysisItemCount }} item(s)</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:220px;overflow-y:auto">
+                  <sc-for list="{{ analysisItems }}" as="ai" hint-placeholder-count="3">
+                    <div onClick="{{ ai.onToggle }}" style="{{ ai.rowStyle }}">
+                      <div style="{{ ai.checkStyle }}">{{ ai.checkMark }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12.5px;font-weight:600;color:#e1e3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ai.title }}</div>
+                        <div style="font-size:11px;color:#757777">{{ ai.meta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                  <div>
+                    <div style="font-size:10.5px;font-weight:700;color:#757777;margin-bottom:5px">QUALITY</div>
+                    <select value="{{ chosenQuality }}" onChange="{{ onQualityChange }}" style="width:100%;background:#161a19;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:8px 10px;color:#e1e3e2;font-size:12.5px;font-family:inherit;outline:none">
+                      <option value="2160p">4K (2160p)</option>
+                      <option value="1080p">1080p</option>
+                      <option value="720p">720p</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style="font-size:10.5px;font-weight:700;color:#757777;margin-bottom:5px">DESTINATION</div>
+                    <button onClick="{{ openNas }}" style="width:100%;text-align:left;background:#161a19;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:8px 10px;color:#e1e3e2;font-size:12.5px;cursor:pointer;font-family:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📁 {{ nasSelectedLabel }}</button>
+                  </div>
+                </div>
+                <button onClick="{{ confirmAddFromUrl }}" style="width:100%;padding:12px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit">Add {{ selectedAnalysisCount }} to Queue</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isNlTab }}">
+          <div style="padding:20px 24px 26px">
+            <div style="font-size:11.5px;font-weight:700;color:#9b9d9d;margin-bottom:8px">TELL CLAUDE WHAT YOU WANT</div>
+            <div style="display:flex;gap:8px;margin-bottom:14px">
+              <input value="{{ nlInput }}" onInput="{{ onNlInput }}" placeholder='e.g. "get me the last 3 episodes of Foundation in 1080p"' style="flex:1;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:8px;padding:11px 13px;color:#e1e3e2;font-size:13.5px;font-family:inherit;outline:none"/>
+              <button onClick="{{ submitNl }}" style="padding:11px 18px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">{{ nlLabel }}</button>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+              <sc-for list="{{ nlSuggestions }}" as="sg" hint-placeholder-count="3">
+                <button onClick="{{ sg.onClick }}" style="padding:6px 11px;border-radius:99px;border:1px solid rgba(117,119,119,0.25);background:transparent;color:#9b9d9d;font-size:11px;cursor:pointer;font-family:inherit">{{ sg.label }}</button>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ nlResult }}">
+              <div style="background:#0c0f0e;border:1px solid rgba(151,240,174,0.22);border-radius:10px;padding:16px;margin-top:14px;animation:fadeUp .3s ease">
+                <div style="font-size:12.5px;color:#e1e3e2;line-height:1.55;margin-bottom:12px">{{ nlSummary }}</div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+                  <sc-for list="{{ nlItems }}" as="ni" hint-placeholder-count="3">
+                    <div onClick="{{ ni.onToggle }}" style="{{ ni.rowStyle }}">
+                      <div style="{{ ni.checkStyle }}">{{ ni.checkMark }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12.5px;font-weight:600;color:#e1e3e2">{{ ni.title }}</div>
+                        <div style="font-size:11px;color:#757777">{{ ni.meta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <button onClick="{{ confirmAddFromNl }}" style="width:100%;padding:12px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit">Add {{ selectedNlCount }} to Queue</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════════ NAS BROWSER MODAL ══════════ -->
+  <sc-if value="{{ nasOpen }}">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px" onClick="{{ closeNasBg }}">
+      <div onClick="{{ stopProp }}" style="background:#161a19;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(117,119,119,0.15)">
+        <div style="padding:18px 22px;border-bottom:1px solid rgba(117,119,119,0.15);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:15px;font-weight:700;color:#f2f4f2;font-family:'Noto Serif',serif">Choose destination</div>
+          <button onClick="{{ closeNas }}" style="width:28px;height:28px;border-radius:7px;border:none;background:#1e2421;color:#9b9d9d;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div style="padding:16px 22px;max-height:340px;overflow-y:auto">
+          <sc-for list="{{ nasTree }}" as="node" hint-placeholder-count="6">
+            <div onClick="{{ node.onClick }}" style="{{ node.rowStyle }}">
+              <span style="{{ node.chevronStyle }}">
+                <sc-if value="{{ node.hasChildren }}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="{{ node.chevronRotate }}"><path d="M9 6l6 6-6 6"/></svg></sc-if>
+              </span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              <span style="font-size:13px">{{ node.name }}</span>
+              <sc-if value="{{ node.isSelected }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#97f0ae" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="M20 6L9 17l-5-5"/></svg></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:14px 22px;border-top:1px solid rgba(117,119,119,0.15);display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <span style="font-size:11.5px;color:#757777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/{{ nasSelectedLabel }}</span>
+          <button onClick="{{ closeNas }}" style="padding:9px 20px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Select folder</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════════ BATCH MODAL ══════════ -->
+  <sc-if value="{{ batchModalOpen }}">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:90;padding:20px" onClick="{{ closeBatchBg }}">
+      <div onClick="{{ stopProp }}" style="background:#161a19;border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(117,119,119,0.15);padding:22px">
+        <div style="font-size:16px;font-weight:700;color:#f2f4f2;font-family:'Noto Serif',serif;margin-bottom:16px">New batch job</div>
+        <div style="font-size:11px;font-weight:700;color:#9b9d9d;margin-bottom:6px">NAME</div>
+        <input value="{{ newBatchName }}" onInput="{{ onNewBatchName }}" placeholder="Weekend TV batch" style="width:100%;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:9px 11px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none;margin-bottom:14px"/>
+        <div style="font-size:11px;font-weight:700;color:#9b9d9d;margin-bottom:6px">RUN AT</div>
+        <input value="{{ newBatchTime }}" onInput="{{ onNewBatchTime }}" placeholder="Sat 02:00" style="width:100%;background:#0c0f0e;border:1.5px solid rgba(117,119,119,0.22);border-radius:6px;padding:9px 11px;color:#e1e3e2;font-size:13px;font-family:inherit;outline:none;margin-bottom:18px"/>
+        <div style="display:flex;gap:10px">
+          <button onClick="{{ closeBatchModal }}" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid rgba(117,119,119,0.25);background:transparent;color:#e1e3e2;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>
+          <button onClick="{{ confirmAddBatch }}" style="flex:1;padding:10px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Create</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════════ PREVIEW MODAL ══════════ -->
+  <sc-if value="{{ previewOpen }}">
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px" onClick="{{ closePreview }}">
+      <div onClick="{{ stopProp }}" style="background:#161a19;border-radius:14px;width:100%;max-width:900px;max-height:88vh;overflow-y:auto;box-shadow:0 24px 70px rgba(0,0,0,0.6);border:1px solid rgba(117,119,119,0.15);display:grid;grid-template-columns:1.5fr 1fr">
+        <div style="background:{{ previewGradient }};position:relative;min-height:360px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:14px 0 0 14px">
+          <div style="{{ previewScanlineStyle }}"></div>
+          <button onClick="{{ togglePreviewPlay }}" style="width:64px;height:64px;border-radius:50%;background:rgba(0,0,0,0.45);border:2px solid rgba(255,255,255,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;z-index:2">{{ previewPlayIcon }}</button>
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:linear-gradient(to top,rgba(0,0,0,0.7),transparent);z-index:2">
+            <div style="height:4px;border-radius:99px;background:rgba(255,255,255,0.25);overflow:hidden;margin-bottom:6px">
+              <div style="{{ previewScrubStyle }}"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10.5px;color:rgba(255,255,255,0.75)"><span>{{ previewTimeLabel }}</span><span>{{ previewDuration }}</span></div>
+          </div>
+          <button onClick="{{ closePreview }}" style="position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,0.5);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;padding:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div style="padding:24px 22px;display:flex;flex-direction:column">
+          <div style="font-size:10.5px;font-weight:700;color:#97f0ae;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">{{ previewKind }}</div>
+          <div style="font-family:'Noto Serif',serif;font-size:20px;font-weight:700;color:#f2f4f2;margin-bottom:8px;line-height:1.25">{{ previewTitle }}</div>
+          <div style="font-size:12.5px;color:#757777;margin-bottom:18px">{{ previewMeta }}</div>
+          <div style="font-size:13px;color:#9b9d9d;line-height:1.6;margin-bottom:22px">{{ previewDescription }}</div>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+            <button style="padding:11px;border-radius:8px;border:none;background:#006a36;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Move file…
+            </button>
+            <button onClick="{{ removeFromLibrary }}" style="padding:11px;border-radius:8px;border:1.5px solid rgba(185,64,64,0.35);background:transparent;color:#b94040;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════════ TOAST ══════════ -->
+  <sc-if value="{{ toast }}">
+    <div style="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#161a19;border:1px solid rgba(151,240,174,0.3);color:#e1e3e2;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,0.4);z-index:120;display:flex;align-items:center;gap:10px;animation:toastIn .25s ease">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#97f0ae" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      {{ toast }}
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    view: 'dashboard',
+    sidebarOpen: true,
+    searchValue: '',
+    claudeOpen: false,
+    chatInput: '',
+    chatThinking: false,
+    chatMessages: [
+      { role: 'assistant', text: "Hi! I can grab new downloads, retry failures, and tidy up your NAS folders. What do you need?" },
+      { role: 'user', text: "The Foundation download from yesterday failed" },
+      { role: 'assistant', text: "That's S02E06 — the source link expired overnight. I found a fresh 1080p mirror and requeued it for you." },
+    ],
+
+    addModalOpen: false,
+    addTab: 'url',
+    urlInput: '',
+    analyzing: false,
+    urlAnalyzed: false,
+    analysisItems: [],
+    chosenQuality: '1080p',
+
+    nlInput: '',
+    nlThinking: false,
+    nlResult: false,
+    nlSummary: '',
+    nlItems: [],
+
+    nasOpen: false,
+    nasExpanded: { root: true, volume1: true, downloads: true },
+    nasSelected: 'tv',
+
+    batchModalOpen: false,
+    newBatchName: '',
+    newBatchTime: '',
+
+    addSourceOpen: false,
+    newSourceUrl: '',
+    newSourceType: 'rss',
+
+    libraryFilter: 'all',
+    previewId: null,
+    previewPlaying: false,
+    previewElapsed: 34,
+
+    toast: null,
+
+    downloads: [
+      { id: 'd1', title: 'Foundation S02E07 — The Last Empire', kind: 'video', status: 'downloading', progress: 64, sizeMB: 2100, quality: '1080p' },
+      { id: 'd2', title: 'Project Blueprint Files.zip', kind: 'file', status: 'downloading', progress: 88, sizeMB: 450 },
+      { id: 'd3', title: 'The Wandering City S01E04', kind: 'video', status: 'queued', sizeMB: 1800, quality: '1080p' },
+      { id: 'd4', title: 'The Wandering City S01E05', kind: 'video', status: 'queued', sizeMB: 1800, quality: '1080p' },
+      { id: 'd5', title: 'Quarterly Report Assets.pdf', kind: 'file', status: 'paused', progress: 22, sizeMB: 80 },
+    ],
+
+    library: [
+      { id: 'l1', title: 'Foundation', sub: 'S02E06 · 1080p', kind: 'Show', duration: '52m', gradient: 'linear-gradient(135deg,#0f3d24,#00505c)', badge: 'NEW', description: 'The Foundation braces for a confrontation that will decide the fate of the Empire, as old alliances fracture under pressure.' },
+      { id: 'l2', title: 'Silent Horizon', sub: 'Movie · 4K', kind: 'Movie', duration: '1h 58m', gradient: 'linear-gradient(135deg,#1c1f4a,#00647a)', badge: '4K', description: 'A stranded research crew must decide who returns home when their transport can only carry half the team.' },
+      { id: 'l3', title: 'Nebula Drift', sub: 'Documentary', kind: 'Documentary', duration: '1h 12m', gradient: 'linear-gradient(135deg,#0f3d24,#245c1c)', badge: 'HD', description: 'A visual journey through deep-space nebulae, narrated with recent data from three orbital telescopes.' },
+      { id: 'l4', title: 'Nebula Drift OST', sub: 'Music · 120 MB', kind: 'Music', duration: '38m', gradient: 'linear-gradient(135deg,#3a1c4a,#00505c)', badge: 'AUDIO', description: 'Original score from the Nebula Drift documentary, mastered in lossless FLAC.' },
+      { id: 'l5', title: 'The Wandering City', sub: 'S01E03 · 1080p', kind: 'Show', duration: '44m', gradient: 'linear-gradient(135deg,#1c1f4a,#245c1c)', badge: 'HD', description: 'The council debates whether to abandon the last working reactor before the next storm hits.' },
+      { id: 'l6', title: 'Design Assets Q3.zip', sub: 'Files · 620 MB', kind: 'Files', duration: '—', gradient: 'linear-gradient(135deg,#232b27,#00505c)', badge: 'ZIP', description: 'Archived design exports and source files from the Q3 production cycle.' },
+      { id: 'l7', title: 'Foundation', sub: 'S02E05 · 1080p', kind: 'Show', duration: '51m', gradient: 'linear-gradient(135deg,#0f3d24,#00505c)', badge: 'HD', description: 'A quiet episode of maneuvering as the Empire consolidates its outer holdings.' },
+      { id: 'l8', title: 'Company Handbook.pdf', sub: 'Files · 4 MB', kind: 'Files', duration: '—', gradient: 'linear-gradient(135deg,#232b27,#245c1c)', badge: 'PDF', description: 'Internal reference document.' },
+    ],
+
+    sources: [
+      { id: 's1', name: 'Foundation — Episode Feed', type: 'rss', detail: 'rss.example-mirror.net/foundation', status: 'active', lastCheck: 'Checked 4m ago', found: 1 },
+      { id: 's2', name: 'Tech Weekly Channel', type: 'youtube', detail: 'youtube.com/@techweekly', status: 'active', lastCheck: 'Checked 12m ago', found: 3 },
+      { id: 's3', name: 'Incoming Watch-folder', type: 'watchfolder', detail: '/volume1/Downloads/incoming', status: 'active', lastCheck: 'Watching live', found: 0 },
+      { id: 's4', name: 'Nightly Backup Mirror', type: 'url', detail: 'mirror.oldhost.example/nightly', status: 'error', lastCheck: 'Failed 1h ago', found: 0 },
+    ],
+
+    batchJobs: [
+      { id: 'b1', title: 'Weekend TV Batch', detail: '6 items · Sat 02:00', status: 'scheduled' },
+      { id: 'b2', title: 'Podcast catch-up', detail: '4 items · Daily 03:00 · recurring', status: 'scheduled' },
+      { id: 'b3', title: 'Backup mirror sync', detail: '12 items · Sun 04:30', status: 'paused' },
+    ],
+
+    scheduleGrid: [
+      [true, true, true, true, true, true, true],
+      [false, false, false, false, false, false, false],
+      [false, false, false, false, false, false, false],
+      [false, false, false, false, false, false, false],
+    ],
+  };
+
+  componentDidMount() {
+    this._timer = setInterval(() => this.tick(), 1300);
+  }
+  componentWillUnmount() {
+    clearInterval(this._timer);
+    clearTimeout(this._toastTimer);
+    clearTimeout(this._chatTimer);
+    clearInterval(this._previewTimer);
+  }
+
+  tick() {
+    this.setState(s => {
+      let downloads = s.downloads.map(d => ({ ...d }));
+      let library = s.library;
+      let toastMsg = null;
+
+      const downloadingCount = downloads.filter(d => d.status === 'downloading').length;
+      // promote queued to downloading if there's room
+      if (downloadingCount < 2) {
+        const next = downloads.find(d => d.status === 'queued');
+        if (next) next.status = 'downloading';
+      }
+
+      downloads.forEach(d => {
+        if (d.status === 'downloading') {
+          d.progress = Math.min(100, (d.progress || 0) + 4 + Math.random() * 7);
+          if (d.progress >= 100) {
+            d.status = 'completed';
+            toastMsg = `"${d.title}" finished downloading`;
+            library = [{ id: 'lib-' + d.id, title: d.title, sub: (d.quality || 'File') + ' · ' + d.sizeMB + ' MB', kind: d.kind === 'video' ? 'Show' : d.kind === 'audio' ? 'Music' : 'Files', duration: d.kind === 'video' ? '44m' : '—', gradient: this.pickGradient(d.id), badge: 'NEW', description: 'Recently completed download, ready to watch or open.' }, ...library];
+          }
+        }
+      });
+      downloads = downloads.filter(d => d.status !== 'completed');
+
+      if (toastMsg) {
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => this.setState({ toast: null }), 3200);
+      }
+      return { downloads, library, toast: toastMsg || s.toast };
+    });
+  }
+
+  pickGradient(seed) {
+    const palette = ['linear-gradient(135deg,#0f3d24,#00505c)', 'linear-gradient(135deg,#1c1f4a,#00647a)', 'linear-gradient(135deg,#3a1c4a,#00505c)', 'linear-gradient(135deg,#0f3d24,#245c1c)', 'linear-gradient(135deg,#232b27,#00505c)'];
+    let h = 0; for (const c of String(seed)) h += c.charCodeAt(0);
+    return palette[h % palette.length];
+  }
+
+  iconFor(kind, size, color) {
+    const s = size || 14; const c = color || 'currentColor';
+    const paths = {
+      video: '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+      file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>',
+      audio: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    };
+    return React.createElement('svg', { width: s, height: s, viewBox: '0 0 24 24', fill: 'none', stroke: c, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', dangerouslySetInnerHTML: { __html: paths[kind] || paths.file } });
+  }
+
+  sourceIcon(type, color) {
+    const c = color || 'currentColor';
+    const paths = {
+      rss: '<path d="M4 11a9 9 0 019 9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="1.5" fill="' + c + '"/>',
+      youtube: '<path d="M8 5v14l11-7z"/>',
+      watchfolder: '<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>',
+      url: '<path d="M10 13a5 5 0 007.07 0l1.93-1.93a5 5 0 00-7.07-7.07L10.5 5.5"/><path d="M14 11a5 5 0 00-7.07 0L5 12.93a5 5 0 007.07 7.07L13.5 18.5"/>',
+    };
+    const fillTypes = { youtube: true };
+    return React.createElement('svg', { width: 17, height: 17, viewBox: '0 0 24 24', fill: fillTypes[type] ? c : 'none', stroke: fillTypes[type] ? 'none' : c, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', dangerouslySetInnerHTML: { __html: paths[type] || paths.url } });
+  }
+
+  showToast(msg) {
+    clearTimeout(this._toastTimer);
+    this.setState({ toast: msg });
+    this._toastTimer = setTimeout(() => this.setState({ toast: null }), 3000);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const setView = (v) => this.setState({ view: v });
+
+    const navDefs = [
+      { id: 'dashboard', label: 'Dashboard', isDashboard: true },
+      { id: 'library', label: 'Library', isLibrary: true },
+      { id: 'sources', label: 'Sources', isSources: true },
+      { id: 'planner', label: 'Planner', isPlanner: true },
+    ];
+    const activeCount = s.downloads.filter(d => d.status === 'downloading').length;
+    const navItems = navDefs.map(n => {
+      const active = s.view === n.id;
+      return {
+        ...n,
+        onClick: () => setView(n.id),
+        badge: n.id === 'dashboard' && activeCount > 0 ? String(activeCount) : null,
+        style: {
+          display: 'flex', alignItems: 'center', gap: 10, padding: s.sidebarOpen ? '10px 12px' : '10px', justifyContent: s.sidebarOpen ? 'flex-start' : 'center',
+          borderRadius: 8, marginBottom: 2, cursor: 'pointer',
+          background: active ? '#006a36' : 'transparent',
+          color: active ? '#fff' : '#e1e3e2',
+          fontSize: 13, fontWeight: active ? 700 : 600, transition: 'background .2s',
+        },
+        iconWrapStyle: { opacity: active ? 1 : 0.65, flexShrink: 0, display: 'flex' },
+      };
+    });
+
+    // ── Dashboard ──
+    const activeDownloads = s.downloads.filter(d => d.status === 'downloading').map(d => {
+      const eta = Math.max(1, Math.round((100 - d.progress) / 6));
+      return {
+        id: d.id,
+        title: d.title,
+        meta: (d.quality ? d.quality + ' · ' : '') + d.sizeMB + ' MB',
+        gradient: this.pickGradient(d.id),
+        scanlineStyle: { position: 'absolute', top: 0, left: 0, right: 0, height: '40%', background: 'linear-gradient(to bottom, rgba(255,255,255,0.06), transparent)', animation: 'scanline 3.5s linear infinite' },
+        typeIconWrap: { color: 'rgba(255,255,255,0.5)' },
+        typeIcon: this.iconFor(d.kind, 26, 'rgba(255,255,255,0.55)'),
+        statusPillStyle: { background: 'rgba(0,0,0,0.5)', color: '#97f0ae', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.04em' },
+        statusLabel: 'Live',
+        barStyle: { height: '100%', width: Math.round(d.progress) + '%', background: 'linear-gradient(90deg,#006a36,#97f0ae)', borderRadius: 99, transition: 'width .3s linear' },
+        progressLabel: Math.round(d.progress) + '% · ETA ' + eta + 'm',
+        toggleIcon: React.createElement('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor', stroke: 'none' }, React.createElement('path', { d: 'M6 4h4v16H6zM14 4h4v16h-4z' })),
+        onToggle: () => this.setState(st => ({ downloads: st.downloads.map(x => x.id === d.id ? { ...x, status: 'paused' } : x) })),
+        onCancel: () => this.setState(st => ({ downloads: st.downloads.filter(x => x.id !== d.id) })),
+      };
+    });
+
+    const pausedAsQueuedLike = s.downloads.filter(d => d.status === 'paused').map(d => ({
+      id: d.id, title: d.title, meta: '⏸ Paused · ' + Math.round(d.progress) + '%',
+      typeIconSmall: this.iconFor(d.kind, 15),
+      onCancel: () => this.setState(st => ({ downloads: st.downloads.filter(x => x.id !== d.id) })),
+    }));
+    const queuedDownloads = s.downloads.filter(d => d.status === 'queued').map(d => ({
+      id: d.id, title: d.title, meta: (d.quality ? d.quality + ' · ' : '') + d.sizeMB + ' MB',
+      typeIconSmall: this.iconFor(d.kind, 15),
+      onCancel: () => this.setState(st => ({ downloads: st.downloads.filter(x => x.id !== d.id) })),
+    })).concat(pausedAsQueuedLike);
+
+    const statCards = [
+      { label: 'Active downloads', value: String(activeCount), color: '#97f0ae', bg: 'rgba(151,240,174,0.1)', iconChar: this.iconFor('video', 18, '#97f0ae') },
+      { label: 'In queue', value: String(s.downloads.filter(d => d.status === 'queued' || d.status === 'paused').length), color: '#00caeb', bg: 'rgba(0,202,235,0.1)', iconChar: this.iconFor('file', 18, '#00caeb') },
+      { label: 'Finished today', value: String(s.library.filter(l => l.badge === 'NEW').length), color: '#97f0ae', bg: 'rgba(151,240,174,0.1)', iconChar: this.iconFor('audio', 18, '#97f0ae') },
+      { label: 'NAS free space', value: '5.8 TB', color: '#e1e3e2', bg: '#1e2421', iconChar: this.iconFor('file', 18, '#e1e3e2') },
+    ];
+
+    const h = new Date().getHours();
+    const greeting = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+
+    const recentLibrary = s.library.slice(0, 4).map(l => ({
+      id: l.id, title: l.title, sub: l.sub, badge: l.badge, gradient: l.gradient,
+      onOpen: () => this.setState({ previewId: l.id, previewPlaying: false, previewElapsed: 4 }),
+    }));
+
+    // ── Library ──
+    const filterDefs = ['all', 'Show', 'Movie', 'Documentary', 'Music', 'Files'];
+    const libraryFilters = filterDefs.map(f => ({
+      label: f === 'all' ? 'All' : f,
+      onClick: () => this.setState({ libraryFilter: f }),
+      style: {
+        padding: '8px 15px', borderRadius: 99, border: '1px solid ' + (s.libraryFilter === f ? '#97f0ae' : 'rgba(117,119,119,0.25)'),
+        background: s.libraryFilter === f ? 'rgba(151,240,174,0.12)' : 'transparent',
+        color: s.libraryFilter === f ? '#97f0ae' : '#9b9d9d', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+      },
+    }));
+    const filteredLibrary = s.library.filter(l => s.libraryFilter === 'all' || l.kind === s.libraryFilter).map(l => ({
+      id: l.id, title: l.title, sub: l.sub, badge: l.badge, gradient: l.gradient, duration: l.duration,
+      onOpen: () => this.setState({ previewId: l.id, previewPlaying: false, previewElapsed: 4 }),
+      wrapStyle: {},
+    }));
+
+    // ── Sources ──
+    const typeLabels = { rss: 'RSS', youtube: 'YouTube', watchfolder: 'Folder', url: 'Direct' };
+    const sources = s.sources.map(src => ({
+      id: src.id, name: src.name, detail: src.detail, typeLabel: typeLabels[src.type],
+      icon: this.sourceIcon(src.type, src.status === 'error' ? '#b94040' : '#97f0ae'),
+      iconWrapStyle: { width: 42, height: 42, borderRadius: 8, background: src.status === 'error' ? 'rgba(185,64,64,0.1)' : 'rgba(151,240,174,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+      statusStyle: { fontSize: 11, fontWeight: 700, color: src.status === 'error' ? '#b94040' : '#97f0ae', textTransform: 'uppercase', letterSpacing: '.04em' },
+      statusLabel: src.status === 'error' ? 'Error' : (src.found > 0 ? src.found + ' new' : 'Active'),
+      lastCheck: src.lastCheck,
+      onRemove: () => this.setState(st => ({ sources: st.sources.filter(x => x.id !== src.id) })),
+    }));
+
+    // ── Planner ──
+    const batchJobs = s.batchJobs.map(b => ({
+      id: b.id, title: b.title, detail: b.detail,
+      statusStyle: { fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.04em', background: b.status === 'paused' ? '#1e2421' : 'rgba(151,240,174,0.12)', color: b.status === 'paused' ? '#757777' : '#97f0ae' },
+      statusLabel: b.status === 'paused' ? 'Paused' : 'Scheduled',
+    }));
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const rowLabels = ['00–06', '06–12', '12–18', '18–24'];
+    const scheduleRows = s.scheduleGrid.map((row, ri) => ({
+      label: rowLabels[ri],
+      cells: row.map((on, ci) => ({
+        onClick: () => this.setState(st => {
+          const grid = st.scheduleGrid.map(r => r.slice());
+          grid[ri][ci] = !grid[ri][ci];
+          return { scheduleGrid: grid };
+        }),
+        style: { height: 22, borderRadius: 4, cursor: 'pointer', background: on ? 'rgba(151,240,174,0.35)' : '#232b27', transition: 'background .15s' },
+      })),
+    }));
+
+    // ── NAS tree ──
+    const nasNodes = [
+      { id: 'root', name: 'Synology (192.168.1.42)', depth: 0, parent: null },
+      { id: 'volume1', name: 'volume1', depth: 1, parent: 'root' },
+      { id: 'downloads', name: 'Downloads', depth: 2, parent: 'volume1' },
+      { id: 'movies', name: 'Movies', depth: 3, parent: 'downloads' },
+      { id: 'tv', name: 'TV Shows', depth: 3, parent: 'downloads' },
+      { id: 'music', name: 'Music', depth: 3, parent: 'downloads' },
+      { id: 'docs', name: 'Documents', depth: 3, parent: 'downloads' },
+      { id: 'backup', name: 'Backup', depth: 2, parent: 'volume1' },
+    ];
+    const isVisible = (node) => {
+      let p = node.parent;
+      while (p) {
+        if (!s.nasExpanded[p]) return false;
+        const pn = nasNodes.find(n => n.id === p);
+        p = pn ? pn.parent : null;
+      }
+      return true;
+    };
+    const hasChildrenOf = (id) => nasNodes.some(n => n.parent === id);
+    const nasTree = nasNodes.filter(isVisible).map(node => {
+      const hc = hasChildrenOf(node.id);
+      const expanded = !!s.nasExpanded[node.id];
+      return {
+        id: node.id, name: node.name, hasChildren: hc,
+        isSelected: s.nasSelected === node.id,
+        chevronRotate: { transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s' },
+        chevronStyle: { width: 14, display: 'inline-flex', color: '#757777', flexShrink: 0 },
+        rowStyle: {
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 8px', marginLeft: node.depth * 16,
+          borderRadius: 6, cursor: 'pointer', color: s.nasSelected === node.id ? '#97f0ae' : '#e1e3e2',
+          background: s.nasSelected === node.id ? 'rgba(151,240,174,0.1)' : 'transparent',
+        },
+        onClick: () => {
+          if (hc) this.setState(st => ({ nasExpanded: { ...st.nasExpanded, [node.id]: !st.nasExpanded[node.id] }, nasSelected: node.id }));
+          else this.setState({ nasSelected: node.id });
+        },
+      };
+    });
+    const pathTo = (id) => {
+      const chain = []; let cur = nasNodes.find(n => n.id === id);
+      while (cur) { if (cur.parent) chain.unshift(cur.name); cur = nasNodes.find(n => n.id === cur.parent); }
+      return chain.join(' / ');
+    };
+    const nasSelectedLabel = pathTo(s.nasSelected);
+
+    // ── Add modal ──
+    const addTabs = [
+      { id: 'url', label: 'Paste URL', onClick: () => this.setState({ addTab: 'url' }) },
+      { id: 'nl', label: 'Ask Claude', onClick: () => this.setState({ addTab: 'nl' }) },
+    ].map(t => ({
+      ...t,
+      style: {
+        padding: '9px 16px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+        background: s.addTab === t.id ? '#0c0f0e' : 'transparent',
+        color: s.addTab === t.id ? '#97f0ae' : '#757777',
+      },
+    }));
+
+    const analysisItems = s.analysisItems.map((it, i) => ({
+      ...it,
+      onToggle: () => this.setState(st => ({ analysisItems: st.analysisItems.map((x, xi) => xi === i ? { ...x, selected: !x.selected } : x) })),
+      rowStyle: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: '#161a19', cursor: 'pointer' },
+      checkStyle: { width: 18, height: 18, borderRadius: 5, border: '1.5px solid ' + (it.selected ? '#97f0ae' : 'rgba(117,119,119,0.4)'), background: it.selected ? '#97f0ae' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, color: '#0c0f0e', fontWeight: 900 },
+      checkMark: it.selected ? '✓' : '',
+    }));
+    const nlItems = s.nlItems.map((it, i) => ({
+      ...it,
+      onToggle: () => this.setState(st => ({ nlItems: st.nlItems.map((x, xi) => xi === i ? { ...x, selected: !x.selected } : x) })),
+      rowStyle: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: '#161a19', cursor: 'pointer' },
+      checkStyle: { width: 18, height: 18, borderRadius: 5, border: '1.5px solid ' + (it.selected ? '#97f0ae' : 'rgba(117,119,119,0.4)'), background: it.selected ? '#97f0ae' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, color: '#0c0f0e', fontWeight: 900 },
+      checkMark: it.selected ? '✓' : '',
+    }));
+
+    const nlSuggestions = [
+      { label: 'Last 3 episodes of Foundation, 1080p', onClick: () => this.setState({ nlInput: 'Get me the last 3 episodes of Foundation in 1080p' }) },
+      { label: 'Everything new from Tech Weekly', onClick: () => this.setState({ nlInput: 'Grab everything new from Tech Weekly channel' }) },
+      { label: 'This week\u2019s podcast batch', onClick: () => this.setState({ nlInput: 'Batch download this week\u2019s podcast episodes' }) },
+    ];
+
+    // ── Claude chat panel ──
+    const chatMessages = s.chatMessages.map(m => ({
+      text: m.text,
+      wrapStyle: { display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' },
+      bubbleStyle: {
+        maxWidth: '82%', padding: '10px 14px', fontSize: 13, lineHeight: 1.5,
+        borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+        background: m.role === 'user' ? '#006a36' : '#161a19',
+        color: m.role === 'user' ? '#fff' : '#e1e3e2',
+      },
+    }));
+    const chatChips = [
+      { label: 'Why did a download fail?', onClick: () => this.setState({ chatInput: 'Why did a download fail?' }) },
+      { label: 'Get latest Foundation episodes', onClick: () => this.setState({ chatInput: 'Get me the latest Foundation episodes' }) },
+      { label: 'Organize my TV folder', onClick: () => this.setState({ chatInput: 'Organize my TV Shows folder' }) },
+    ];
+
+    // ── Preview modal ──
+    const previewItem = s.previewId ? s.library.find(l => l.id === s.previewId) : null;
+    const previewDuration = previewItem ? previewItem.duration : '';
+    const previewPlaying = s.previewPlaying;
+    const fmtTime = (sec) => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+
+    return {
+      sidebarOpen: s.sidebarOpen,
+      sidebarStyle: {
+        width: s.sidebarOpen ? 240 : 72, flexShrink: 0, background: '#0c0f0e', borderRight: '1px solid rgba(117,119,119,0.18)',
+        display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative', transition: 'width .25s cubic-bezier(0.4,0,0.2,1)',
+      },
+      toggleSidebar: () => this.setState({ sidebarOpen: !s.sidebarOpen }),
+      collapseArrowStyle: { transform: s.sidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform .2s' },
+      navItems,
+
+      searchValue: s.searchValue,
+      onSearchInput: (e) => this.setState({ searchValue: e.target.value }),
+      liveBadgeStyle: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#9b9d9d', background: '#161a19', padding: '7px 13px', borderRadius: 99 },
+      activeCountLabel: activeCount + ' active',
+      openAddModal: () => this.setState({ addModalOpen: true }),
+
+      isDashboard: s.view === 'dashboard',
+      isLibrary: s.view === 'library',
+      isSources: s.view === 'sources',
+      isPlanner: s.view === 'planner',
+      greeting: greeting,
+      todayLabel: new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      statCards,
+      hasActiveDownloads: activeDownloads.length > 0,
+      activeDownloads,
+      queuedDownloads,
+      noQueued: queuedDownloads.length === 0,
+      recentLibrary,
+      goLibrary: () => this.setState({ view: 'library' }),
+
+      libraryCountLabel: s.library.length + ' items in your library',
+      libraryFilters,
+      filteredLibrary,
+      noLibraryResults: filteredLibrary.length === 0,
+
+      toggleAddSource: () => this.setState({ addSourceOpen: !s.addSourceOpen }),
+      addSourceOpen: s.addSourceOpen,
+      newSourceUrl: s.newSourceUrl,
+      onNewSourceUrl: (e) => this.setState({ newSourceUrl: e.target.value }),
+      newSourceType: s.newSourceType,
+      onNewSourceType: (e) => this.setState({ newSourceType: e.target.value }),
+      confirmAddSource: () => {
+        if (!s.newSourceUrl.trim()) return;
+        const labels = { rss: 'RSS', youtube: 'YouTube', watchfolder: 'Folder', url: 'Direct' };
+        this.setState(st => ({
+          sources: [{ id: 's' + Date.now(), name: st.newSourceUrl, detail: st.newSourceUrl, type: st.newSourceType, status: 'active', lastCheck: 'Just added', found: 0 }, ...st.sources],
+          newSourceUrl: '', addSourceOpen: false,
+        }));
+        this.showToast('Source connected');
+      },
+      sources,
+
+      batchJobs,
+      dayLabels,
+      scheduleRows,
+      openBatchModal: () => this.setState({ batchModalOpen: true }),
+      batchModalOpen: s.batchModalOpen,
+      newBatchName: s.newBatchName,
+      onNewBatchName: (e) => this.setState({ newBatchName: e.target.value }),
+      newBatchTime: s.newBatchTime,
+      onNewBatchTime: (e) => this.setState({ newBatchTime: e.target.value }),
+      closeBatchModal: () => this.setState({ batchModalOpen: false, newBatchName: '', newBatchTime: '' }),
+      closeBatchBg: () => this.setState({ batchModalOpen: false }),
+      confirmAddBatch: () => {
+        if (!s.newBatchName.trim()) return;
+        this.setState(st => ({
+          batchJobs: [{ id: 'b' + Date.now(), title: st.newBatchName, detail: (st.newBatchTime || 'Unscheduled'), status: 'scheduled' }, ...st.batchJobs],
+          batchModalOpen: false, newBatchName: '', newBatchTime: '',
+        }));
+        this.showToast('Batch job created');
+      },
+
+      // Claude FAB / panel
+      showFab: !s.claudeOpen,
+      toggleClaude: () => this.setState({ claudeOpen: !s.claudeOpen }),
+      claudePanelStyle: {
+        position: 'fixed', top: 0, right: 0, height: '100vh', width: 360, maxWidth: '92vw', background: '#0c0f0e',
+        borderLeft: '1px solid rgba(117,119,119,0.18)', display: 'flex', flexDirection: 'column', zIndex: 70,
+        transform: s.claudeOpen ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .3s cubic-bezier(0.4,0,0.2,1)',
+        boxShadow: s.claudeOpen ? '-12px 0 40px rgba(0,0,0,0.4)' : 'none',
+      },
+      chatMessages,
+      chatThinking: s.chatThinking,
+      chatChips,
+      chatInput: s.chatInput,
+      onChatInput: (e) => this.setState({ chatInput: e.target.value }),
+      onChatKeyDown: (e) => { if (e.key === 'Enter') this.sendChatMessage(); },
+      sendChat: () => this.sendChatMessage(),
+
+      // Add modal
+      addModalOpen: s.addModalOpen,
+      closeAddModal: () => this.setState({ addModalOpen: false }),
+      closeAddModalBg: () => this.setState({ addModalOpen: false }),
+      stopProp: (e) => e.stopPropagation(),
+      addTabs,
+      isUrlTab: s.addTab === 'url',
+      isNlTab: s.addTab === 'nl',
+
+      urlInput: s.urlInput,
+      onUrlInput: (e) => this.setState({ urlInput: e.target.value }),
+      analyzeLabel: s.analyzing ? 'Analyzing…' : 'Analyze',
+      analyzeUrl: () => this.doAnalyzeUrl(),
+      urlAnalyzed: s.urlAnalyzed,
+      analysisItemCount: s.analysisItems.length,
+      analysisItems,
+      chosenQuality: s.chosenQuality,
+      onQualityChange: (e) => this.setState({ chosenQuality: e.target.value }),
+      selectedAnalysisCount: s.analysisItems.filter(i => i.selected).length,
+      confirmAddFromUrl: () => this.confirmAddFromAnalysis(),
+
+      nlInput: s.nlInput,
+      onNlInput: (e) => this.setState({ nlInput: e.target.value }),
+      nlLabel: s.nlThinking ? 'Thinking…' : 'Ask',
+      submitNl: () => this.doSubmitNl(),
+      nlSuggestions,
+      nlResult: s.nlResult,
+      nlSummary: s.nlSummary,
+      nlItems,
+      selectedNlCount: s.nlItems.filter(i => i.selected).length,
+      confirmAddFromNl: () => this.confirmAddFromNlItems(),
+
+      // NAS
+      openNas: () => this.setState({ nasOpen: true }),
+      nasOpen: s.nasOpen,
+      closeNas: () => this.setState({ nasOpen: false }),
+      closeNasBg: () => this.setState({ nasOpen: false }),
+      nasTree,
+      nasSelectedLabel,
+
+      // Preview
+      previewOpen: !!previewItem,
+      previewGradient: previewItem ? previewItem.gradient : '#161a19',
+      previewScanlineStyle: { position: 'absolute', top: 0, left: 0, right: 0, height: '35%', background: 'linear-gradient(to bottom, rgba(255,255,255,0.05), transparent)', animation: 'scanline 3.5s linear infinite', pointerEvents: 'none' },
+      previewPlayIcon: previewPlaying
+        ? React.createElement('svg', { width: 22, height: 22, viewBox: '0 0 24 24', fill: '#fff', stroke: 'none' }, React.createElement('path', { d: 'M6 4h4v16H6zM14 4h4v16h-4z' }))
+        : React.createElement('svg', { width: 22, height: 22, viewBox: '0 0 24 24', fill: '#fff', stroke: 'none' }, React.createElement('path', { d: 'M8 5v14l11-7z' })),
+      togglePreviewPlay: () => this.togglePreview(),
+      previewScrubStyle: { height: '100%', width: (previewItem ? Math.min(100, (s.previewElapsed / 60) * 100) : 0) + '%', background: '#97f0ae', borderRadius: 99 },
+      previewTimeLabel: fmtTime(s.previewElapsed),
+      previewDuration: previewDuration,
+      previewKind: previewItem ? previewItem.kind : '',
+      previewTitle: previewItem ? previewItem.title : '',
+      previewMeta: previewItem ? previewItem.sub : '',
+      previewDescription: previewItem ? previewItem.description : '',
+      closePreview: () => { clearInterval(this._previewTimer); this.setState({ previewId: null, previewPlaying: false }); },
+      removeFromLibrary: () => {
+        this.setState(st => ({ library: st.library.filter(l => l.id !== st.previewId), previewId: null }));
+        this.showToast('Removed from library');
+        clearInterval(this._previewTimer);
+      },
+
+      toast: s.toast,
+    };
+  }
+
+  sendChatMessage() {
+    const input = (this.state.chatInput || '').trim();
+    if (!input) return;
+    this.setState(st => ({ chatMessages: [...st.chatMessages, { role: 'user', text: input }], chatInput: '', chatThinking: true }));
+    clearTimeout(this._chatTimer);
+    this._chatTimer = setTimeout(() => {
+      const lower = input.toLowerCase();
+      let reply;
+      if (/fail|error|stuck|why/.test(lower)) {
+        reply = "I checked the logs — the source link had expired. I found a working mirror and requeued the download at the same quality.";
+      } else if (/organi|rename|folder|tidy/.test(lower)) {
+        reply = "Done — I moved 3 mismatched files into /Downloads/TV Shows and renamed them to match your usual naming pattern.";
+      } else if (/episode|season|1080p|get me|grab|download/.test(lower)) {
+        const title = 'Foundation S02E11';
+        this.setState(st => ({
+          downloads: [{ id: 'd' + Date.now(), title, kind: 'video', status: 'queued', sizeMB: 2000, quality: /4k|2160/.test(lower) ? '2160p' : /720/.test(lower) ? '720p' : '1080p' }, ...st.downloads],
+        }));
+        reply = `Found it — queued "${title}" in ${/4k|2160/.test(lower) ? '4K' : /720/.test(lower) ? '720p' : '1080p'}. Check the Dashboard queue.`;
+      } else {
+        reply = "Got it — give me a title, a quality, or paste a link and I'll take care of the rest.";
+      }
+      this.setState(st => ({ chatMessages: [...st.chatMessages, { role: 'assistant', text: reply }], chatThinking: false }));
+    }, 1000);
+  }
+
+  doAnalyzeUrl() {
+    if (!this.state.urlInput.trim() || this.state.analyzing) return;
+    this.setState({ analyzing: true });
+    setTimeout(() => {
+      this.setState({
+        analyzing: false, urlAnalyzed: true,
+        analysisItems: [
+          { title: 'Foundation S02E08 — Long Ago, Not Far Away', meta: '1080p · ~2.0 GB', selected: true },
+          { title: 'Foundation S02E09 — Creed Take Me Home', meta: '1080p · ~2.0 GB', selected: true },
+          { title: 'Foundation S02E10 — Janus Descending', meta: '1080p · ~2.1 GB', selected: true },
+        ],
+      });
+    }, 900);
+  }
+
+  confirmAddFromAnalysis() {
+    const selected = this.state.analysisItems.filter(i => i.selected);
+    if (selected.length === 0) return;
+    this.setState(st => ({
+      downloads: [...selected.map((it, i) => ({ id: 'd' + Date.now() + i, title: it.title, kind: 'video', status: i === 0 ? 'downloading' : 'queued', progress: 0, sizeMB: 2000, quality: st.chosenQuality })), ...st.downloads],
+      addModalOpen: false, urlAnalyzed: false, urlInput: '', analysisItems: [],
+    }));
+    this.showToast(`Added ${selected.length} download(s) to queue`);
+  }
+
+  doSubmitNl() {
+    if (!this.state.nlInput.trim() || this.state.nlThinking) return;
+    this.setState({ nlThinking: true });
+    setTimeout(() => {
+      const lower = this.state.nlInput.toLowerCase();
+      const quality = /4k|2160/.test(lower) ? '2160p' : /720/.test(lower) ? '720p' : '1080p';
+      this.setState({
+        nlThinking: false, nlResult: true,
+        nlSummary: `I matched this to "Foundation" on your RSS feed. Here are the next episodes in ${quality} — destination will default to /Downloads/TV Shows.`,
+        nlItems: [
+          { title: 'Foundation S02E11 — Long Live the Empire', meta: quality + ' · ~2.1 GB', selected: true },
+          { title: 'Foundation S02E12 — Creation Myths', meta: quality + ' · ~2.0 GB', selected: true },
+          { title: 'Foundation S02E13 — Population: One', meta: quality + ' · ~2.2 GB', selected: true },
+        ],
+      });
+    }, 1100);
+  }
+
+  confirmAddFromNlItems() {
+    const selected = this.state.nlItems.filter(i => i.selected);
+    if (selected.length === 0) return;
+    this.setState(st => ({
+      downloads: [...selected.map((it, i) => ({ id: 'd' + Date.now() + i, title: it.title, kind: 'video', status: i === 0 ? 'downloading' : 'queued', progress: 0, sizeMB: 2100, quality: 'auto' })), ...st.downloads],
+      addModalOpen: false, nlResult: false, nlInput: '', nlItems: [],
+    }));
+    this.showToast(`Added ${selected.length} download(s) to queue`);
+  }
+
+  togglePreview() {
+    if (this.state.previewPlaying) {
+      clearInterval(this._previewTimer);
+      this.setState({ previewPlaying: false });
+    } else {
+      this.setState({ previewPlaying: true });
+      this._previewTimer = setInterval(() => {
+        this.setState(st => ({ previewElapsed: st.previewElapsed + 1 }));
+      }, 1000);
+    }
+  }
+}
+</script>
+</body>
+</html>
