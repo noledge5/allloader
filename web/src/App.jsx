@@ -53,6 +53,7 @@ function useCove() {
   const [sources, setSources] = useState([]);
   const [batches, setBatches] = useState([]);
   const [schedule, setSchedule] = useState({ row_labels: [], grid: [] });
+  const [ai, setAi] = useState({ configured: false });
   const [toast, setToast] = useState(null);
   const toastTimer = useRef();
 
@@ -74,6 +75,7 @@ function useCove() {
 
   useEffect(() => {
     refresh();
+    api.aiStatus().then(setAi).catch(() => {});
     const unsub = subscribe((msg) => {
       if (msg.type === "snapshot") setDownloads(msg.downloads);
       else if (msg.type === "progress") {
@@ -89,7 +91,7 @@ function useCove() {
     return () => { unsub(); clearInterval(poll); };
   }, []);
 
-  return { downloads, sources, batches, schedule, setSchedule, toast, flash, refresh };
+  return { downloads, sources, batches, schedule, setSchedule, ai, toast, flash, refresh };
 }
 
 /* ── app ───────────────────────────────────────────────────────────────── */
@@ -161,7 +163,7 @@ export default function App() {
       </div>
 
       {/* Claude FAB + panel */}
-      <ClaudePanel open={claudeOpen} setOpen={setClaudeOpen} />
+      <ClaudePanel open={claudeOpen} setOpen={setClaudeOpen} cove={cove} />
 
       {/* Modals */}
       {addOpen && <AddModal cove={cove} onClose={() => setAddOpen(false)} onPickNas={() => setNasOpen(true)} />}
@@ -476,16 +478,82 @@ function AddModal({ cove, onClose, onPickNas }) {
           <button onClick={submit} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: 12 }}>Add to queue</button>
         </div>
       ) : (
-        <div style={{ padding: "20px 24px 30px" }}>
-          <Label>TELL CLAUDE WHAT YOU WANT</Label>
-          <input disabled placeholder='e.g. "last 3 episodes of Frieren in 1080p German sub"' style={{ ...inp, opacity: 0.6, marginBottom: 12 }} />
-          <div style={{ background: C.bg, border: `1px solid rgba(117,119,119,0.2)`, borderRadius: 10, padding: 16, fontSize: 12.5, color: C.dim, display: "flex", gap: 10, alignItems: "center" }}>
-            <Svg d={I.spark} fill={C.accent} s={16} />
-            Natural-language intake is wired up in the Claude phase — paste a URL for now.
-          </div>
-        </div>
+        <IntakeTab cove={cove} onClose={onClose} />
       )}
     </Modal>
+  );
+}
+
+/* ── natural-language intake (Claude) ──────────────────────────────────── */
+function IntakeTab({ cove, onClose }) {
+  const [text, setText] = useState("");
+  const [items, setItems] = useState(null);   // proposed items awaiting confirm
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  if (!cove.ai.configured) {
+    return (
+      <div style={{ padding: "20px 24px 30px" }}>
+        <div style={{ background: C.bg, border: `1px solid rgba(117,119,119,0.2)`, borderRadius: 10, padding: 16, fontSize: 12.5, color: C.dim, display: "flex", gap: 10, alignItems: "center" }}>
+          <Svg d={I.spark} fill={C.accent} s={16} />
+          Claude features are off. Set <code style={{ color: C.text }}>ANTHROPIC_API_KEY</code> and restart Cove to enable natural-language intake.
+        </div>
+      </div>
+    );
+  }
+
+  const propose = async () => {
+    if (!text.trim()) return;
+    setBusy(true); setErr("");
+    try {
+      const res = await api.aiIntake(text);
+      setItems(res.items || []); setNote(res.note || "");
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      const r = await api.queueItems(items);
+      cove.refresh(); cove.flash(`Queued ${r.queued} item${r.queued === 1 ? "" : "s"}`); onClose();
+    } catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ padding: "20px 24px 26px" }}>
+      <Label>TELL CLAUDE WHAT YOU WANT</Label>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3}
+        placeholder='e.g. "grab this playlist as audio, and the aniworld Frieren season 1 in German sub"'
+        style={{ ...inp, marginBottom: 12, resize: "vertical", fontFamily: "inherit" }} />
+      {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{err}</div>}
+      {items === null ? (
+        <button onClick={propose} disabled={busy} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: 12, opacity: busy ? 0.6 : 1 }}>
+          {busy ? "Thinking…" : "Ask Claude"}
+        </button>
+      ) : (
+        <>
+          {note && <div style={{ fontSize: 12.5, color: C.sub, marginBottom: 10 }}>{note}</div>}
+          <div style={{ maxHeight: 220, overflowY: "auto", background: C.bg, borderRadius: 8, border: `1px solid rgba(117,119,119,0.18)`, marginBottom: 12 }}>
+            {items.length === 0 && <div style={{ padding: 16, fontSize: 12.5, color: C.dim }}>Claude found no downloadable links in that.</div>}
+            {items.map((it, i) => (
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < items.length - 1 ? `1px solid rgba(117,119,119,0.12)` : "none" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title || it.filename || it.url}</div>
+                <div style={{ fontSize: 11, color: C.dim }}>{it.kind}{it.library ? ` · ${it.library}` : ""}{it.needs_resolve ? " · needs resolve" : ""}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => { setItems(null); setNote(""); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Back</button>
+            <button onClick={confirm} disabled={busy || items.length === 0} style={{ ...btn.primary, flex: 1, justifyContent: "center", opacity: (busy || items.length === 0) ? 0.6 : 1 }}>
+              Queue {items.length || ""}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -541,8 +609,34 @@ function Preview({ item, onClose, cove }) {
   );
 }
 
-/* ── claude panel (stub until Claude phase) ────────────────────────────── */
-function ClaudePanel({ open, setOpen }) {
+/* ── claude panel (conversational control) ─────────────────────────────── */
+function ClaudePanel({ open, setOpen, cove }) {
+  const configured = cove.ai.configured;
+  const [msgs, setMsgs] = useState([]);       // {role:'user'|'assistant', text}
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const scroller = useRef();
+
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+  }, [msgs, busy]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    const next = [...msgs, { role: "user", text }];
+    setMsgs(next); setInput(""); setBusy(true);
+    try {
+      // Send prior turns as history (text-only) so Claude has memory.
+      const history = msgs.map((m) => ({ role: m.role, content: m.text }));
+      const res = await api.aiChat(text, history);
+      setMsgs([...next, { role: "assistant", text: res.reply }]);
+      if (res.actions && res.actions.length) cove.refresh();
+    } catch (e) {
+      setMsgs([...next, { role: "assistant", text: "⚠ " + e.message }]);
+    } finally { setBusy(false); }
+  };
+
   return (
     <>
       {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 60 }} />}
@@ -551,16 +645,29 @@ function ClaudePanel({ open, setOpen }) {
           <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#006a36,#00caeb)", display: "flex", alignItems: "center", justifyContent: "center" }}><Svg d={I.spark} fill="#fff" s={15} /></div>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: C.head }}>Download Assistant</div>
-            <div style={{ fontSize: 10.5, color: C.dim }}>Powered by Claude</div>
+            <div style={{ fontSize: 10.5, color: C.dim }}>{configured ? "Powered by Claude" : "Set ANTHROPIC_API_KEY to enable"}</div>
           </div>
           <button onClick={() => setOpen(false)} style={{ marginLeft: "auto", ...iconBtnStyle() }}><Svg d={I.x} s={13} /></button>
         </div>
-        <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-          <Bubble who="assistant">Hi! Once the Claude phase is wired up I'll grab downloads, retry failures, and tidy your library from plain requests. For now, use “New Download”.</Bubble>
+        <div ref={scroller} style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+          {msgs.length === 0 && (
+            <Bubble who="assistant">
+              {configured
+                ? "Hi! Ask me things like “what's downloading?”, “pause the big one”, or “retry the failed episodes” and I'll drive the queue for you."
+                : "Claude features are off. Set ANTHROPIC_API_KEY and restart Cove, then I can inspect and control your downloads from plain requests."}
+            </Bubble>
+          )}
+          {msgs.map((m, i) => m.role === "user"
+            ? <div key={i} style={{ alignSelf: "flex-end", background: "rgba(0,106,54,0.35)", borderRadius: "12px 12px 4px 12px", padding: "10px 14px", fontSize: 12.5, color: C.text, lineHeight: 1.5, maxWidth: "85%" }}>{m.text}</div>
+            : <div key={i} style={{ alignSelf: "flex-start", background: C.card, borderRadius: "12px 12px 12px 4px", padding: "10px 14px", fontSize: 12.5, color: C.text, lineHeight: 1.5, maxWidth: "85%", whiteSpace: "pre-wrap" }}>{m.text}</div>
+          )}
+          {busy && <Bubble who="assistant">…</Bubble>}
         </div>
         <div style={{ padding: 14, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8 }}>
-          <input disabled placeholder="Claude assistant — coming soon" style={{ ...inp, opacity: 0.6 }} />
-          <button disabled style={{ ...btn.primary, opacity: 0.6, width: 40, padding: 0, justifyContent: "center" }}><Svg d={I.send} c="#fff" s={15} /></button>
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
+            disabled={!configured || busy} placeholder={configured ? "Ask about your downloads…" : "Claude assistant — not configured"}
+            style={{ ...inp, opacity: configured ? 1 : 0.6 }} />
+          <button onClick={send} disabled={!configured || busy} style={{ ...btn.primary, opacity: (!configured || busy) ? 0.6 : 1, width: 40, padding: 0, justifyContent: "center" }}><Svg d={I.send} c="#fff" s={15} /></button>
         </div>
       </div>
       <button onClick={() => setOpen(!open)} style={{ position: "fixed", bottom: 26, right: 26, width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#006a36,#00caeb)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 30px rgba(0,106,54,0.4)", zIndex: 55 }}>

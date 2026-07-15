@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .. import adapters, db, nas
+from .. import adapters, ai, db, nas
 from ..engine.manager import manager
 
 router = APIRouter(prefix="/api")
@@ -161,6 +161,59 @@ def remove(did: str):
     manager.cancel(did)
     db.delete_download(did)
     return {"ok": True}
+
+
+# -- Claude workflow layer (ADR 0002) --------------------------------------
+
+class IntakeIn(BaseModel):
+    text: str
+
+
+class ChatIn(BaseModel):
+    message: str
+    history: list[dict] | None = None
+
+
+@router.get("/ai/status")
+def ai_status():
+    """Whether Claude features are usable; the GUI hides them when configured=false."""
+    return ai.status()
+
+
+@router.post("/ai/intake")
+def ai_intake(body: IntakeIn):
+    """Natural-language → proposed download items (does NOT queue; caller confirms)."""
+    if not ai.available():
+        raise HTTPException(503, "Claude is not configured (set ANTHROPIC_API_KEY).")
+    try:
+        return ai.intake.plan(body.text)
+    except ai.AIError as e:
+        raise HTTPException(502, str(e))
+
+
+@router.post("/ai/chat")
+def ai_chat(body: ChatIn):
+    """Conversational control of the download queue via a bounded tool-loop."""
+    if not ai.available():
+        raise HTTPException(503, "Claude is not configured (set ANTHROPIC_API_KEY).")
+    try:
+        return ai.chat.reply(body.message, body.history)
+    except ai.AIError as e:
+        raise HTTPException(502, str(e))
+
+
+@router.post("/ai/triage/{did}")
+def ai_triage(did: str):
+    """Explain why a (usually failed) download didn't work and what to try next."""
+    d = db.get_download(did)
+    if not d:
+        raise HTTPException(404, "download not found")
+    if not ai.available():
+        raise HTTPException(503, "Claude is not configured (set ANTHROPIC_API_KEY).")
+    try:
+        return {"explanation": ai.triage.explain(d)}
+    except ai.AIError as e:
+        raise HTTPException(502, str(e))
 
 
 # -- catalog (derived: completed downloads) --------------------------------

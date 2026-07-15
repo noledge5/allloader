@@ -29,6 +29,12 @@ export const api = {
   removeSource: (id) => req("DELETE", `/api/sources/${id}`),
   scanSource: (id) => req("POST", `/api/sources/${id}/scan`),
   analyze: (b) => req("POST", "/api/analyze", b),
+  queueItems: (items) => req("POST", "/api/queue", { items }),
+
+  aiStatus: () => req("GET", "/api/ai/status"),
+  aiIntake: (text) => req("POST", "/api/ai/intake", { text }),
+  aiChat: (message, history) => req("POST", "/api/ai/chat", { message, history }),
+  aiTriage: (id) => req("POST", `/api/ai/triage/${id}`),
 
   listBatches: () => req("GET", "/api/batches"),
   addBatch: (b) => req("POST", "/api/batches", b),
