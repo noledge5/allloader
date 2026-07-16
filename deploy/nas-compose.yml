@@ -1,0 +1,30 @@
+# Ready-to-use Cove compose for a Synology NAS (arm64/amd64).
+# Fetch it straight onto the NAS instead of pasting YAML (paste mangles indentation):
+#
+#   cd ~/cove
+#   curl -fsSL https://raw.githubusercontent.com/noledge5/allloader/refs/heads/claude/mediacenter-downloader/deploy/nas-compose.yml -o docker-compose.yml
+#   sudo docker compose pull && sudo docker compose up -d
+#
+# Reads secrets/paths from ~/cove/.env (env_file), so there is no ${...} to mistype.
+# Change the /nas volume below if your share isn't /volume1/Mediathek.
+services:
+  cove:
+    image: ghcr.io/noledge5/allloader:latest
+    container_name: cove
+    restart: unless-stopped
+    ports:
+      - "5100:5100"
+    env_file:
+      - .env
+    volumes:
+      - "/volume1/Mediathek:/nas"
+      - "./config:/config"
+
+  # Auto-updates Cove when a new image is published — no more manual pulls.
+  watchtower:
+    image: containrrr/watchtower
+    container_name: cove-watchtower
+    restart: unless-stopped
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    command: --interval 300 --cleanup cove
