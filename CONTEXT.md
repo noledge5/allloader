@@ -84,15 +84,36 @@ for the user to confirm before it runs.
 _Avoid_: Prompt, query.
 
 **Triage**:
-Claude reasoning over a messy/unknown page or a failed **Resolver** to decide the next
-step — enumerate episodes, pick a **Streamhoster**, or suggest an alternate approach.
+Deciding which **Variant** of each **Proposal** to download (or to skip it) — and, on a
+messy/unknown page or a failed **Resolver**, reasoning about the next step. Performed by a
+**Selector**: a deterministic policy or **Claude**.
+
+**Proposal**:
+An enumerated but **not-yet-committed** candidate from a **Source** re-scan (or a paste),
+carrying its available **Variants** and awaiting **Triage**. Becomes a **Download** only
+when confirmed. A **Source** produces Proposals — never **Downloads** directly.
+_Avoid_: Candidate (fine in prose; in code it's Proposal).
+
+**Variant**:
+One concrete way to fetch a **Proposal**'s episode — a (**Streamhoster**, language) pair
+(e.g. VOE / German Dub). A Proposal lists every Variant its **Adapter** found; **Triage**
+picks one Variant (or skips the Proposal).
+
+**Selector**:
+The swappable module at the **Triage** seam that picks one **Variant** per **Proposal**
+(or skips it). Two kinds: a deterministic **policy** (preferred **Streamhoster** order +
+language) and **Claude** (reasons over the whole Proposal set). Same interface, so they're
+interchangeable and testable in isolation.
+_Avoid_: Filter, Chooser.
 
 ## Relationships
 
 - A **Source** has a type and is served by exactly one **Adapter**; the user re-scans it on demand (no auto-poll)
-- An aniworld/streamhoster **Adapter** enumerates episodes and picks one of several **Streamhosters** in a preferred order
+- A **Source** re-scan produces **Proposals** (never **Downloads** directly); each Proposal lists its **Variants**
+- An aniworld/streamhoster **Adapter** enumerates episodes and reports every **Variant** ((**Streamhoster**, language)) it found
+- A **Selector** (policy or **Claude**) picks one **Variant** per **Proposal** during **Triage**; confirming turns chosen Proposals into **Downloads**
 - A **Streamhoster** embed is turned into a downloadable stream by a **Resolver**
-- A **Batch** expands a **Source** re-scan / episode range / pasted list into many **Downloads**
+- A **Batch** expands a **Source** re-scan / episode range / pasted list into many **Proposals** (then **Downloads** on confirm)
 - The **Planner** decides when queued **Downloads** run; it does not discover items
 - A completed **Download** is written under a **Library** bucket with Plex/Jellyfin-standard naming, and appears in Cove's **Catalog**
 - Plex/Jellyfin index those **Library** buckets and handle all browsing/streaming/transcoding

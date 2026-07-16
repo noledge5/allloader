@@ -60,10 +60,19 @@ def resolvers() -> list[Resolver]:
 
 
 def resolve(embed_url: str, hint: str | None = None) -> str | None:
-    """Turn a streamhoster embed URL into a concrete media URL, or None."""
-    for r in resolvers():
+    """Turn a streamhoster embed URL into a concrete media URL, or None.
+
+    The `hint` (e.g. "voe") names the streamhoster the Adapter saw. It matters
+    because hosts like VOE rotate to mirror domains that no longer contain their
+    name, so URL matching alone would miss them — a resolver whose name equals the
+    hint is tried even when matches() is False, and first.
+    """
+    rs = resolvers()
+    if hint:
+        rs = [r for r in rs if r.name == hint] + [r for r in rs if r.name != hint]
+    for r in rs:
         try:
-            if r.matches(embed_url):
+            if (hint and r.name == hint) or r.matches(embed_url):
                 out = r.resolve(embed_url)
                 if out:
                     return out

@@ -34,7 +34,10 @@ const I = {
   plus: "M12 5v14M5 12h14", x: "M18 6L6 18M6 6l12 12",
   play: "M8 5v14l11-7z", pause: "M6 4h4v16H6zM14 4h4v16h-4z",
   search: "M11 3a8 8 0 105 14l4 4M11 3a8 8 0 010 16",
+  review: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11",
   trash: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14",
+  check: "M20 6L9 17l-5-5",
+  filter: "M3 4h18l-7 8v6l-4 2v-8z",
   spark: "M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z",
   send: "M22 2L11 13M22 2l-7 20-4-9-9-4z",
 };
@@ -53,6 +56,7 @@ function useCove() {
   const [sources, setSources] = useState([]);
   const [batches, setBatches] = useState([]);
   const [schedule, setSchedule] = useState({ row_labels: [], grid: [] });
+  const [proposals, setProposals] = useState([]);
   const [ai, setAi] = useState({ configured: false });
   const [toast, setToast] = useState(null);
   const toastTimer = useRef();
@@ -65,11 +69,13 @@ function useCove() {
 
   const refresh = async () => {
     try {
-      const [d, s, b, sc] = await Promise.all([
+      const [d, s, b, sc, pr] = await Promise.all([
         api.listDownloads(), api.listSources(), api.listBatches(), api.getSchedule(),
+        api.listProposals(),
       ]);
       setDownloads(d); setSources(s); setBatches(b);
       setSchedule(sc || { row_labels: [], grid: [] });
+      setProposals(pr || []);
     } catch {}
   };
 
@@ -91,7 +97,7 @@ function useCove() {
     return () => { unsub(); clearInterval(poll); };
   }, []);
 
-  return { downloads, sources, batches, schedule, setSchedule, ai, toast, flash, refresh };
+  return { downloads, sources, batches, schedule, setSchedule, proposals, ai, toast, flash, refresh };
 }
 
 /* ── app ───────────────────────────────────────────────────────────────── */
@@ -105,13 +111,14 @@ export default function App() {
   const [preview, setPreview] = useState(null);
   const [claudeOpen, setClaudeOpen] = useState(false);
 
-  const { downloads } = cove;
+  const { downloads, proposals } = cove;
   const active = downloads.filter((d) => d.status === "downloading");
   const queued = downloads.filter((d) => d.status === "queued");
   const done = downloads.filter((d) => d.status === "completed");
 
   const nav = [
     { key: "dashboard", label: "Dashboard", d: I.dash },
+    { key: "review", label: "Review", d: I.review, badge: proposals.length || null },
     { key: "library", label: "Library", d: I.library },
     { key: "sources", label: "Sources", d: I.sources },
     { key: "planner", label: "Planner", d: I.planner, badge: queued.length || null },
@@ -156,8 +163,9 @@ export default function App() {
         <Topbar search={search} setSearch={setSearch} activeCount={active.length} onNew={() => setAddOpen(true)} />
         <div style={{ flex: 1, overflowY: "auto" }}>
           {view === "dashboard" && <Dashboard cove={cove} active={active} queued={queued} done={done} onOpen={setPreview} goLibrary={() => setView("library")} />}
-          {view === "library" && <Library done={done} search={search} onOpen={setPreview} />}
-          {view === "sources" && <Sources cove={cove} />}
+          {view === "review" && <Review cove={cove} />}
+          {view === "library" && <Library done={done} search={search} onOpen={setPreview} cove={cove} />}
+          {view === "sources" && <Sources cove={cove} goReview={() => setView("review")} />}
           {view === "planner" && <Planner cove={cove} onNewBatch={() => setBatchOpen(true)} />}
         </div>
       </div>
@@ -276,15 +284,65 @@ function ActiveCard({ d, cove }) {
 }
 
 /* ── library (Cove's own catalog) ──────────────────────────────────────── */
-function Library({ done, search, onOpen }) {
-  const items = done.filter((d) => !search || (d.title || d.filename || "").toLowerCase().includes(search.toLowerCase()));
+function Library({ done, search, onOpen, cove }) {
+  const [lib, setLib] = useState("");     // library-bucket filter
+  const [sort, setSort] = useState("new");
+  const [pick, setPick] = useState(false); // multiselect mode
+  const [sel, setSel] = useState({});
+
+  const buckets = [...new Set(done.map((d) => d.library).filter(Boolean))];
+  let items = done.filter((d) =>
+    (!search || (d.title || d.filename || "").toLowerCase().includes(search.toLowerCase())) &&
+    (!lib || d.library === lib));
+  items = [...items].sort((a, b) =>
+    sort === "name" ? (a.title || a.filename || "").localeCompare(b.title || b.filename || "")
+      : sort === "size" ? (b.total || 0) - (a.total || 0)
+        : (b.created_at || 0) - (a.created_at || 0));
+
+  const selIds = items.filter((d) => sel[d.id]).map((d) => d.id);
+  const removeSelected = async () => {
+    for (const id of selIds) await api.remove(id);
+    setSel({}); cove.flash(`${selIds.length} gelöscht`); cove.refresh();
+  };
+
   return (
     <div style={{ padding: "30px 32px 60px", maxWidth: 1300, animation: "fadeUp .3s ease" }}>
       <h1 style={hStyle}>Library</h1>
-      <p style={{ fontSize: 13, color: C.dim, margin: "0 0 22px" }}>{items.length} downloaded item{items.length === 1 ? "" : "s"} · streamed by Plex/Jellyfin</p>
-      {items.length === 0 && <Empty>Nothing downloaded yet.</Empty>}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 20px", flexWrap: "wrap" }}>
+        <p style={{ fontSize: 13, color: C.dim, margin: 0 }}>{items.length} Downloads · Plex/Jellyfin streamt</p>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          {buckets.length > 0 && (
+            <select value={lib} onChange={(e) => setLib(e.target.value)} style={{ ...inp, width: 140 }}>
+              <option value="">Alle Libraries</option>
+              {buckets.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          )}
+          <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ ...inp, width: 140 }}>
+            <option value="new">Neueste</option>
+            <option value="name">Name</option>
+            <option value="size">Größe</option>
+          </select>
+          <button onClick={() => { setPick(!pick); setSel({}); }} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5 }}>
+            {pick ? "Fertig" : "Auswählen"}
+          </button>
+          {pick && selIds.length > 0 && (
+            <button onClick={removeSelected} style={{ ...btn.primary, padding: "9px 14px", background: C.red }}>
+              <Svg d={I.trash} s={13} c="#fff" /> Löschen ({selIds.length})
+            </button>
+          )}
+        </div>
+      </div>
+      {items.length === 0 && <Empty>Noch nichts heruntergeladen.</Empty>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 20 }}>
-        {items.map((d) => <PosterCard key={d.id} d={d} onOpen={onOpen} />)}
+        {items.map((d) => (
+          <div key={d.id} style={{ position: "relative" }}>
+            {pick && (
+              <input type="checkbox" checked={!!sel[d.id]} onChange={() => setSel((s) => ({ ...s, [d.id]: !s[d.id] }))}
+                style={{ position: "absolute", top: 8, right: 8, zIndex: 2, width: 18, height: 18, cursor: "pointer" }} />
+            )}
+            <PosterCard d={d} onOpen={pick ? () => setSel((s) => ({ ...s, [d.id]: !s[d.id] })) : onOpen} />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -304,6 +362,124 @@ function PosterCard({ d, onOpen, small }) {
   );
 }
 
+/* ── review (Triage: confirm Proposals before they download) ───────────── */
+const variantLabel = (v) => `${v.language || "?"} · ${(v.host || "direct").toUpperCase()}`;
+
+function Review({ cove }) {
+  const proposals = cove.proposals || [];
+  const [choice, setChoice] = useState({});   // id -> variant index or -1 (skip)
+  const [checked, setChecked] = useState({}); // id -> bool
+  const [lang, setLang] = useState("");       // language filter
+  const [q, setQ] = useState("");             // series/title filter
+  const [sort, setSort] = useState("title");
+
+  // Initialise the per-row choice from the Selector's pre-pick whenever the set changes.
+  useEffect(() => {
+    const init = {};
+    for (const p of proposals) init[p.id] = p.selected == null ? -1 : p.selected;
+    setChoice(init); setChecked({});
+  }, [proposals.map((p) => p.id).join(",")]);
+
+  const langs = [...new Set(proposals.flatMap((p) => (p.variants || []).map((v) => v.language).filter(Boolean)))];
+
+  let view = proposals.filter((p) => {
+    if (q && !(p.title || "").toLowerCase().includes(q.toLowerCase())) return false;
+    if (lang && !(p.variants || []).some((v) => v.language === lang)) return false;
+    return true;
+  });
+  view = [...view].sort((a, b) => sort === "title"
+    ? (a.title || "").localeCompare(b.title || "")
+    : (b.title || "").localeCompare(a.title || ""));
+
+  const checkedIds = view.filter((p) => checked[p.id]).map((p) => p.id);
+  const acting = checkedIds.length ? checkedIds : view.map((p) => p.id);
+  const allChecked = view.length > 0 && view.every((p) => checked[p.id]);
+
+  const setVariant = (id, idx) => setChoice((c) => ({ ...c, [id]: idx }));
+  const toggle = (id) => setChecked((c) => ({ ...c, [id]: !c[id] }));
+  const toggleAll = () => {
+    const next = {}; const v = !allChecked;
+    for (const p of view) next[p.id] = v;
+    setChecked(next);
+  };
+
+  const confirm = async () => {
+    const selections = {};
+    for (const id of acting) selections[id] = choice[id] === -1 ? null : choice[id];
+    const r = await api.confirmProposals(selections, acting);
+    cove.flash(`${r.queued} in die Warteschlange`); cove.refresh();
+  };
+  const dismiss = async () => {
+    await api.dismissProposals(acting);
+    cove.flash(`${acting.length} verworfen`); cove.refresh();
+  };
+
+  return (
+    <div style={{ padding: "30px 32px 60px", maxWidth: 1200, animation: "fadeUp .3s ease" }}>
+      <h1 style={hStyle}>Review</h1>
+      <p style={{ fontSize: 13, color: C.dim, margin: "0 0 20px" }}>
+        Vorschläge aus deinen Sources — Sprache prüfen, dann herunterladen. Nichts lädt, bis du bestätigst.
+      </p>
+
+      {proposals.length === 0 && <Empty>Keine offenen Vorschläge. Scanne eine Source.</Empty>}
+
+      {proposals.length > 0 && (
+        <>
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Serie/Titel filtern…"
+              style={{ ...inp, width: 200 }} />
+            <select value={lang} onChange={(e) => setLang(e.target.value)} style={{ ...inp, width: 160 }}>
+              <option value="">Alle Sprachen</option>
+              {langs.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ ...inp, width: 140 }}>
+              <option value="title">Titel A–Z</option>
+              <option value="title-desc">Titel Z–A</option>
+            </select>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <button onClick={dismiss} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5 }}>
+                <Svg d={I.trash} s={13} /> Verwerfen ({acting.length})
+              </button>
+              <button onClick={confirm} style={{ ...btn.primary, padding: "9px 16px" }}>
+                <Svg d={I.check} s={14} c="#fff" w={2.4} /> Herunterladen ({acting.length})
+              </button>
+            </div>
+          </div>
+
+          <div style={{ background: C.card, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${C.line}`, fontSize: 11, fontWeight: 700, color: C.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>
+              <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+              <span style={{ flex: 1 }}>{view.length} Vorschläge{checkedIds.length ? ` · ${checkedIds.length} markiert` : ""}</span>
+              <span style={{ width: 220 }}>Variante (Sprache · Host)</span>
+            </div>
+            {view.map((p) => {
+              const cur = choice[p.id] ?? -1;
+              const skip = cur === -1;
+              return (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: `1px solid rgba(117,119,119,0.1)`, opacity: skip ? 0.55 : 1 }}>
+                  <input type="checkbox" checked={!!checked[p.id]} onChange={() => toggle(p.id)} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                    <div style={{ fontSize: 11, color: C.dim }}>
+                      {(p.variants || []).length} Varianten · {p.library || "—"}
+                      {!skip && p.variants?.[cur] ? ` · ${p.variants[cur].language}` : skip ? " · übersprungen" : ""}
+                    </div>
+                  </div>
+                  <select value={cur} onChange={(e) => setVariant(p.id, parseInt(e.target.value, 10))}
+                    style={{ ...inp, width: 220 }}>
+                    {(p.variants || []).map((v, j) => <option key={j} value={j}>{variantLabel(v)}</option>)}
+                    <option value={-1}>— Überspringen —</option>
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── sources ───────────────────────────────────────────────────────────── */
 const SOURCE_TYPES = [
   { v: "aniworld", label: "Aniworld / Streamhoster" },
@@ -318,7 +494,7 @@ const LANGUAGES = [
   { v: "English Sub", label: "English Sub" },
   { v: "", label: "Any language" },
 ];
-function Sources({ cove }) {
+function Sources({ cove, goReview }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [detail, setDetail] = useState("");
@@ -372,8 +548,11 @@ function Sources({ cove }) {
               <div style={{ fontSize: 12, color: C.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.detail}</div>
             </div>
             <button onClick={async () => {
-              try { const r = await api.scanSource(s.id); cove.flash(`Queued ${r.queued} item${r.queued === 1 ? "" : "s"}`); cove.refresh(); }
-              catch (e) { cove.flash("Scan failed: " + e.message); }
+              try {
+                const r = await api.scanSource(s.id);
+                cove.flash(`${r.proposed} Vorschläge — bitte im Review bestätigen`);
+                await cove.refresh(); goReview && goReview();
+              } catch (e) { cove.flash("Scan failed: " + e.message); }
             }} style={{ ...btn.ghost, padding: "8px 14px", fontSize: 12 }}>Re-scan</button>
             <IconBtn onClick={async () => { await api.removeSource(s.id); cove.refresh(); }} d={I.trash} c={C.dim} big />
           </div>

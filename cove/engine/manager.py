@@ -98,12 +98,17 @@ class Manager:
                 self._workers.pop(download_id, None)
 
     def _resolve_embed(self, url: str, hint):
-        """Best-effort resolver-chain lookup (plugins + headless), never raises."""
+        """Resolve a streamhoster embed to a stream URL. Follows any intermediary
+        redirect (aniworld's /redirect/ -> the real embed) first so the embed is
+        current and can serve as the download Referer, then runs the Resolver
+        chain (honoring the host hint). Returns (stream_url|None, embed_url).
+        Never raises."""
         try:
             from .. import resolvers
-            return resolvers.resolve(url, hint)
+            embed = _follow_redirects(url)
+            return resolvers.resolve(embed, hint), embed
         except Exception:
-            return None
+            return None, url
 
     def _run(self, download_id: str):
         d = db.get_download(download_id)
@@ -135,9 +140,9 @@ class Manager:
             # passing the embed as Referer so the CDN doesn't 403.
             status = self._run_worker(download_id, make_video(url))
             if status == "failed" and needs_resolve:
-                concrete = self._resolve_embed(url, d.get("resolver_hint"))
+                concrete, embed = self._resolve_embed(url, d.get("resolver_hint"))
                 if concrete and concrete != url:
-                    status = self._run_worker(download_id, make_video(concrete, referer=url))
+                    status = self._run_worker(download_id, make_video(concrete, referer=embed))
         else:
             # Non-video streamhoster embeds still resolve to a bare URL first.
             if needs_resolve:
@@ -235,6 +240,24 @@ def _guess_name(url: str) -> str:
     import urllib.parse
     path = urllib.parse.urlparse(url).path
     return os.path.basename(path) or "download.bin"
+
+
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/122.0 Safari/537.36")
+
+
+def _follow_redirects(url: str) -> str:
+    """Final URL after HTTP redirects (aniworld /redirect/ -> hoster embed).
+    A direct URL returns itself. Best-effort: returns the input on failure."""
+    if not url.startswith("http"):
+        return url
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.geturl()
+    except Exception:
+        return url
 
 
 manager = Manager()

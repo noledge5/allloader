@@ -66,6 +66,24 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Proposals: enumerated-but-not-yet-committed candidates from a Source scan.
+-- Each carries its Variants (JSON) and a Selector's pre-pick; confirming turns a
+-- Proposal into a Download (CONTEXT.md).
+CREATE TABLE IF NOT EXISTS proposals (
+    id          TEXT PRIMARY KEY,
+    source_id   TEXT,
+    title       TEXT NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'video',
+    library     TEXT,
+    dest_rel    TEXT,
+    filename    TEXT,
+    variants    TEXT NOT NULL,                    -- JSON list of Variant dicts
+    selected    INTEGER,                          -- pre-picked Variant index, or NULL to skip
+    status      TEXT NOT NULL DEFAULT 'proposed', -- proposed | confirmed | dismissed
+    meta        TEXT,                             -- JSON (series/season/episode)
+    created_at  REAL NOT NULL
+);
 """
 
 # Default off-peak schedule: 4 time bands x 7 days, all off (= always allowed).
@@ -190,3 +208,64 @@ def get_download(id: str) -> Optional[dict]:
 
 def delete_download(id: str) -> None:
     _q("DELETE FROM downloads WHERE id=?", (id,))
+
+
+# -- proposals (staging before Downloads) ----------------------------------
+
+def insert_proposal(p: dict) -> None:
+    _q(
+        """INSERT INTO proposals
+        (id,source_id,title,kind,library,dest_rel,filename,variants,selected,status,meta,created_at)
+        VALUES (:id,:source_id,:title,:kind,:library,:dest_rel,:filename,:variants,
+                :selected,:status,:meta,:created_at)""",
+        {
+            "id": p["id"], "source_id": p.get("source_id"), "title": p["title"],
+            "kind": p.get("kind", "video"), "library": p.get("library"),
+            "dest_rel": p.get("dest_rel"), "filename": p.get("filename"),
+            "variants": json.dumps(p.get("variants") or []),
+            "selected": p.get("selected"),
+            "status": p.get("status", "proposed"),
+            "meta": json.dumps(p.get("meta") or {}),
+            "created_at": time.time(),
+        },
+    )
+
+
+def _proposal_dict(r: dict) -> dict:
+    r["variants"] = json.loads(r.get("variants") or "[]")
+    r["meta"] = json.loads(r.get("meta") or "{}")
+    return r
+
+
+def list_proposals(statuses: Optional[list[str]] = None) -> list[dict]:
+    if statuses:
+        marks = ",".join("?" * len(statuses))
+        rs = rows(f"SELECT * FROM proposals WHERE status IN ({marks}) ORDER BY created_at",
+                  tuple(statuses))
+    else:
+        rs = rows("SELECT * FROM proposals ORDER BY created_at")
+    return [_proposal_dict(r) for r in rs]
+
+
+def get_proposal(id: str) -> Optional[dict]:
+    r = row("SELECT * FROM proposals WHERE id=?", (id,))
+    return _proposal_dict(r) if r else None
+
+
+def update_proposal(id: str, **fields) -> None:
+    if not fields:
+        return
+    cols = ", ".join(f"{k}=:{k}" for k in fields)
+    fields["id"] = id
+    _q(f"UPDATE proposals SET {cols} WHERE id=:id", fields)
+
+
+def delete_proposal(id: str) -> None:
+    _q("DELETE FROM proposals WHERE id=?", (id,))
+
+
+def clear_proposals(source_id: str, statuses: tuple = ("proposed",)) -> None:
+    """Drop a Source's still-pending proposals before a fresh re-scan."""
+    marks = ",".join("?" * len(statuses))
+    _q(f"DELETE FROM proposals WHERE source_id=? AND status IN ({marks})",
+       (source_id, *statuses))

@@ -80,10 +80,18 @@ def plan(text: str) -> dict:
             Adapter = adapters.detect(url)
             if Adapter:
                 try:
-                    for it in Adapter().enumerate(url, settings):
-                        d = it.to_dict()
-                        d.setdefault("library", c.get("library"))
-                        items.append(d)
+                    from .. import triage
+                    proposals = Adapter().enumerate(url, settings)
+                    picks = triage.select(proposals, settings)
+                    for p, idx in zip(proposals, picks):
+                        if idx is None or idx >= len(p.variants):
+                            continue                     # Selector skipped it
+                        v = p.variants[idx]
+                        items.append(_item_dict(
+                            v.url, p.kind, p.title, v.quality,
+                            p.library or c.get("library"), p.dest_rel, p.filename,
+                            v.needs_resolve, v.resolver_hint,
+                        ))
                     continue
                 except Exception:
                     pass  # fall through to a single-item candidate

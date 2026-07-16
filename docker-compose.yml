@@ -30,3 +30,14 @@ services:
       - "${COVE_NAS_PATH:-/volume1/media}:/nas"
       # Persistent state: the SQLite queue + the Claude CLI config.
       - "${COVE_CONFIG_PATH:-./config}:/config"
+
+  # Auto-updater: watches GHCR for a new :latest, pulls it and restarts Cove — so
+  # you never run `docker compose pull` by hand. Remove this service if you'd
+  # rather update manually.
+  watchtower:
+    image: containrrr/watchtower
+    container_name: cove-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval ${COVE_UPDATE_INTERVAL:-300} --cleanup --include-restarting cove

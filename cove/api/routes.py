@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .. import adapters, ai, db, nas
+from .. import adapters, ai, db, nas, triage
 from ..engine.manager import manager
 
 router = APIRouter(prefix="/api")
@@ -77,24 +77,18 @@ _ENUMERATING = ("aniworld", "rss")
 @router.post("/downloads")
 def create_download(body: NewDownload):
     # A series/feed link (e.g. aniworld) is enumerated into its episodes; anything
-    # else is queued as the single download the user asked for.
+    # else it is queued as the single download the user asked for.
     if not body.needs_resolve:
         Adapter = adapters.detect(body.url)
         if Adapter and getattr(Adapter, "type", "") in _ENUMERATING:
-            settings = {"quality": body.quality or "best"}
+            settings = {"quality": body.quality or "best", "selector": "claude"}
             if body.library:
                 settings["library"] = body.library
             try:
-                items = Adapter().enumerate(body.url, settings)
+                created = _stage_proposals(Adapter, body.url, settings)
             except Exception as e:
                 raise HTTPException(502, f"could not read {Adapter.type}: {e}")
-            if items:
-                ids = [_queue_item(
-                    it.url, it.kind, it.title, it.quality,
-                    it.library or body.library, it.dest_rel, it.filename,
-                    needs_resolve=it.needs_resolve, resolver_hint=it.resolver_hint,
-                ) for it in items]
-                return {"queued": len(ids), "ids": ids}
+            return {"proposed": len(created), "proposal_ids": created}
 
     return {"id": _queue_item(
         body.url, body.kind, body.title, body.quality, body.library,
@@ -103,20 +97,112 @@ def create_download(body: NewDownload):
     )}
 
 
-# -- adapters: analyze a URL / scan a source -------------------------------
+# -- Proposals: staging between a Source scan and Downloads ----------------
+
+def _stage_proposals(Adapter, target, settings, source_id=None) -> list[str]:
+    """Enumerate into Proposals, let the Selector pre-pick a Variant per Proposal,
+    and persist them as `proposed`. Nothing is downloaded — that waits for confirm."""
+    proposals = Adapter().enumerate(target, settings)
+    picks = triage.select(proposals, settings)
+    created: list[str] = []
+    for p, sel in zip(proposals, picks):
+        pid = uuid.uuid4().hex[:10]
+        db.insert_proposal({
+            "id": pid, "source_id": source_id, "title": p.title, "kind": p.kind,
+            "library": p.library or settings.get("library"), "dest_rel": p.dest_rel,
+            "filename": p.filename, "variants": [v.to_dict() for v in p.variants],
+            "selected": sel, "status": "proposed", "meta": p.meta,
+        })
+        created.append(pid)
+    return created
+
 
 @router.post("/analyze")
 def analyze(body: AnalyzeIn):
-    """Enumerate downloadable items from a URL (playlist, feed, aniworld series,
-    or a single link) without queuing them. Powers the New Download flow."""
+    """Enumerate Proposals (with their Variants) from a URL without staging or
+    downloading — a preview."""
     Adapter = adapters.get_adapter(body.type) if body.type else adapters.detect(body.url)
     if not Adapter:
         raise HTTPException(400, "no adapter for this URL")
     try:
-        items = Adapter().enumerate(body.url, body.settings or {})
+        proposals = Adapter().enumerate(body.url, body.settings or {})
     except Exception as e:
         raise HTTPException(502, f"could not analyze: {e}")
-    return {"adapter": Adapter.type, "items": [i.to_dict() for i in items]}
+    return {"adapter": Adapter.type, "proposals": [p.to_dict() for p in proposals]}
+
+
+@router.post("/sources/{sid}/scan")
+def scan_source(sid: str):
+    """Re-scan a Source into Proposals (staging), pre-picked by the Selector. A
+    Source produces Proposals, never Downloads directly (CONTEXT.md, ADR 0004)."""
+    import json
+    s = db.row("SELECT * FROM sources WHERE id=?", (sid,))
+    if not s:
+        raise HTTPException(404, "source not found")
+    Adapter = adapters.get_adapter(s["type"]) or adapters.detect(s["detail"] or "")
+    try:
+        settings = json.loads(s.get("settings") or "{}")
+    except ValueError:
+        settings = {}
+    settings.setdefault("selector", "claude")   # Claude pre-selects by default
+    db.clear_proposals(sid)                      # drop this Source's stale pending proposals
+    try:
+        created = _stage_proposals(Adapter, s["detail"] or "", settings, source_id=sid)
+    except Exception as e:
+        db._q("UPDATE sources SET status=?, last_scan=? WHERE id=?", ("error", time.time(), sid))
+        raise HTTPException(502, f"scan failed: {e}")
+    db._q("UPDATE sources SET status=?, last_scan=? WHERE id=?", ("idle", time.time(), sid))
+    return {"proposed": len(created)}
+
+
+@router.get("/proposals")
+def list_proposals():
+    """Pending Proposals awaiting Triage (with Variants + the pre-picked index)."""
+    return db.list_proposals(["proposed"])
+
+
+class ConfirmProposals(BaseModel):
+    # {proposal_id: variant_index or null-to-skip}; omit for stored pre-pick.
+    selections: dict[str, int | None] | None = None
+    ids: list[str] | None = None            # confirm these; default = all proposed
+
+
+@router.post("/proposals/confirm")
+def confirm_proposals(body: ConfirmProposals):
+    """Turn chosen Proposals into Downloads using the selected Variant, then mark
+    them confirmed. Proposals with no chosen Variant are skipped (dismissed)."""
+    sel = body.selections or {}
+    targets = body.ids or [p["id"] for p in db.list_proposals(["proposed"])]
+    queued = 0
+    for pid in targets:
+        p = db.get_proposal(pid)
+        if not p or p["status"] != "proposed":
+            continue
+        idx = sel.get(pid, p.get("selected"))
+        variants = p.get("variants") or []
+        if idx is None or not (isinstance(idx, int) and 0 <= idx < len(variants)):
+            db.update_proposal(pid, status="dismissed")
+            continue
+        v = variants[idx]
+        _queue_item(
+            v["url"], p.get("kind", "video"), p["title"], v.get("quality"),
+            p.get("library"), p.get("dest_rel"), p.get("filename"),
+            source_id=p.get("source_id"),
+            needs_resolve=v.get("needs_resolve", False),
+            resolver_hint=v.get("resolver_hint"),
+        )
+        db.update_proposal(pid, status="confirmed")
+        queued += 1
+    return {"queued": queued}
+
+
+@router.post("/proposals/dismiss")
+def dismiss_proposals(body: ConfirmProposals):
+    """Drop Proposals without downloading them."""
+    targets = body.ids or [p["id"] for p in db.list_proposals(["proposed"])]
+    for pid in targets:
+        db.delete_proposal(pid)
+    return {"dismissed": len(targets)}
 
 
 class QueueItems(BaseModel):
@@ -125,7 +211,8 @@ class QueueItems(BaseModel):
 
 @router.post("/queue")
 def queue_items(body: QueueItems):
-    """Queue a set of items previously returned by /analyze (or /sources/{id}/scan)."""
+    """Queue flat item dicts directly (used by the natural-language Intake flow,
+    which has already chosen a single URL per item)."""
     ids = []
     for it in body.items:
         ids.append(_queue_item(
@@ -135,33 +222,6 @@ def queue_items(body: QueueItems):
             resolver_hint=it.get("resolver_hint"),
         ))
     return {"queued": len(ids), "ids": ids}
-
-
-@router.post("/sources/{sid}/scan")
-def scan_source(sid: str):
-    """Re-scan a Source and queue everything it finds (manual, per ADR 0004)."""
-    import json
-    s = db.row("SELECT * FROM sources WHERE id=?", (sid,))
-    if not s:
-        raise HTTPException(404, "source not found")
-    Adapter = adapters.get_adapter(s["type"]) or adapters.detect(s["detail"] or "")
-    settings = {}
-    try:
-        settings = json.loads(s.get("settings") or "{}")
-    except ValueError:
-        pass
-    try:
-        items = Adapter().enumerate(s["detail"] or "", settings)
-    except Exception as e:
-        db._q("UPDATE sources SET status=?, last_scan=? WHERE id=?", ("error", time.time(), sid))
-        raise HTTPException(502, f"scan failed: {e}")
-    ids = [_queue_item(
-        it.url, it.kind, it.title, it.quality, it.library or settings.get("library"),
-        it.dest_rel, it.filename, source_id=sid,
-        needs_resolve=it.needs_resolve, resolver_hint=it.resolver_hint,
-    ) for it in items]
-    db._q("UPDATE sources SET status=?, last_scan=? WHERE id=?", ("idle", time.time(), sid))
-    return {"queued": len(ids)}
 
 
 @router.post("/downloads/{did}/pause")

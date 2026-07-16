@@ -1,11 +1,11 @@
-"""Adapters turn a Source or a pasted URL into concrete downloadable Items.
+"""Adapters turn a Source or a pasted URL into Proposals (each with its Variants).
 
 Each Adapter handles one kind of origin (direct link, YouTube, RSS, watch-folder,
 aniworld/streamhoster page). The registry picks one by explicit type or by
 detecting the URL. Aniworld additionally leans on the Resolver layer.
 """
 
-from .base import Adapter, Item
+from .base import Adapter, Proposal, Variant
 from .direct import DirectAdapter
 from .rss import RssAdapter
 from .youtube import YouTubeAdapter
@@ -40,4 +40,4 @@ def detect(url: str) -> type[Adapter]:
     return DirectAdapter
 
 
-__all__ = ["Adapter", "Item", "get_adapter", "detect", "_ADAPTERS"]
+__all__ = ["Adapter", "Proposal", "Variant", "get_adapter", "detect", "_ADAPTERS"]

@@ -5,7 +5,7 @@ the standard library (no third-party feed parser). Manual re-scan only.
 import urllib.request
 import xml.etree.ElementTree as ET
 
-from .base import Adapter, Item
+from .base import Adapter, Proposal
 
 _UA = "Cove/0.1"
 _AUDIO = ("audio/", ".mp3", ".m4a", ".ogg", ".flac")
@@ -21,12 +21,12 @@ class RssAdapter(Adapter):
         u = url.lower()
         return u.endswith(".xml") or u.endswith(".rss") or "/rss" in u or "/feed" in u
 
-    def enumerate(self, target: str, settings: dict | None = None) -> list[Item]:
+    def enumerate(self, target: str, settings: dict | None = None) -> list[Proposal]:
         library = (settings or {}).get("library")
         req = urllib.request.Request(target, headers={"User-Agent": _UA})
         with urllib.request.urlopen(req, timeout=30) as r:
             root = ET.fromstring(r.read())
-        items: list[Item] = []
+        out: list[Proposal] = []
         # RSS: channel/item ; Atom: feed/entry
         entries = root.findall(".//item") or root.findall(
             ".//{http://www.w3.org/2005/Atom}entry")
@@ -34,8 +34,9 @@ class RssAdapter(Adapter):
             link, kind = self._media(e)
             if not link:
                 continue
-            items.append(Item(title=self._title(e) or link, url=link, kind=kind, library=library))
-        return items
+            out.append(Proposal.single(title=self._title(e) or link, url=link,
+                                       kind=kind, library=library))
+        return out
 
     def _title(self, e):
         for tag in ("title", "{http://www.w3.org/2005/Atom}title"):

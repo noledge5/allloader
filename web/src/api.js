@@ -31,6 +31,10 @@ export const api = {
   analyze: (b) => req("POST", "/api/analyze", b),
   queueItems: (items) => req("POST", "/api/queue", { items }),
 
+  listProposals: () => req("GET", "/api/proposals"),
+  confirmProposals: (selections, ids) => req("POST", "/api/proposals/confirm", { selections, ids }),
+  dismissProposals: (ids) => req("POST", "/api/proposals/dismiss", { ids }),
+
   aiStatus: () => req("GET", "/api/ai/status"),
   aiIntake: (text) => req("POST", "/api/ai/intake", { text }),
   aiChat: (message, history) => req("POST", "/api/ai/chat", { message, history }),

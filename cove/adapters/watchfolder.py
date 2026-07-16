@@ -7,7 +7,7 @@ not an HTTP download). Only files, never recurses into hidden dirs.
 
 import os
 
-from .base import Adapter, Item
+from .base import Adapter, Proposal
 
 _MEDIA = (".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".mp3", ".flac", ".m4a", ".srt")
 
@@ -20,12 +20,12 @@ class WatchFolderAdapter(Adapter):
         # A local path, not an http(s) URL.
         return not url.startswith("http") and (os.path.sep in url or url.startswith("/"))
 
-    def enumerate(self, target: str, settings: dict | None = None) -> list[Item]:
+    def enumerate(self, target: str, settings: dict | None = None) -> list[Proposal]:
         settings = settings or {}
         library = settings.get("library")
-        items: list[Item] = []
+        out: list[Proposal] = []
         if not os.path.isdir(target):
-            return items
+            return out
         for root, dirs, files in os.walk(target):
             dirs[:] = [d for d in dirs if not d.startswith(".")]
             for name in sorted(files):
@@ -34,6 +34,6 @@ class WatchFolderAdapter(Adapter):
                     continue
                 path = os.path.join(root, name)
                 kind = "audio" if ext in (".mp3", ".flac", ".m4a") else "video"
-                items.append(Item(title=name, url="file://" + path, kind=kind,
-                                  library=library, filename=name))
-        return items
+                out.append(Proposal.single(title=name, url="file://" + path, kind=kind,
+                                           library=library, filename=name))
+        return out

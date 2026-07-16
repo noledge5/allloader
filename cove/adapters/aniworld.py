@@ -15,7 +15,7 @@ import urllib.request
 
 from bs4 import BeautifulSoup
 
-from .base import Adapter, Item
+from .base import Adapter, Proposal, Variant
 
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/122.0 Safari/537.36")
@@ -33,27 +33,24 @@ class AniworldAdapter(Adapter):
     def detect(cls, url: str) -> bool:
         return any(h in url for h in _HOSTS)
 
-    def enumerate(self, target: str, settings: dict | None = None) -> list[Item]:
+    def enumerate(self, target: str, settings: dict | None = None) -> list[Proposal]:
         settings = settings or {}
-        order = [h.lower() for h in settings.get("hosters", DEFAULT_HOSTER_ORDER)]
-        # Empty/"any" language = take whatever's offered. Otherwise, when `strict`
-        # (default), episodes that don't have the chosen language are skipped
-        # rather than silently falling back to another language.
-        language = settings.get("language", DEFAULT_LANGUAGE) or None
-        strict = settings.get("strict", True)
         quality = settings.get("quality", "best")
         library = settings.get("library", "Anime")
 
+        # The Adapter no longer picks a host or language — it reports every Variant
+        # each episode offers. Which Variant wins (language + hoster order) is the
+        # Selector's job at the Triage seam (CONTEXT.md).
         episodes = self._episode_urls(target)
-        items: list[Item] = []
+        out: list[Proposal] = []
         for ep_url in episodes:
             try:
-                item = self._episode_item(ep_url, order, language, quality, library, strict)
+                p = self._episode_proposal(ep_url, quality, library)
             except Exception:
-                item = None
-            if item:
-                items.append(item)
-        return items
+                p = None
+            if p and p.variants:
+                out.append(p)
+        return out
 
     # -- page discovery ----------------------------------------------------
 
@@ -87,34 +84,41 @@ class AniworldAdapter(Adapter):
 
     # -- one episode -------------------------------------------------------
 
-    def _episode_item(self, ep_url, order, language, quality, library, strict=True) -> Item | None:
+    def _episode_proposal(self, ep_url, quality, library) -> Proposal | None:
+        """Build one Proposal for an episode, carrying every (host, language)
+        Variant it offers. Redirects are NOT resolved here — the Variant keeps
+        aniworld's /redirect/ URL and it's followed just-in-time at download time
+        so embeds stay fresh (only the chosen Variant ever gets resolved)."""
         html = self._fetch(ep_url)
         soup = BeautifulSoup(html, "html.parser")
-        hosters = self._hosters(soup, language, strict)
+        hosters = self._hosters(soup)
         if not hosters:
-            return None  # no host in the requested language (strict) -> skip episode
-        chosen = self._choose(hosters, order)
-        embed = self._resolve_redirect(self._base(ep_url), chosen["redirect"])
+            return None
         season, episode = self._season_episode(ep_url)
         series = self._series_name(soup, ep_url)
         s2 = f"{season:02d}" if season else "01"
         e2 = f"{episode:02d}" if episode else "01"
-        dest_rel = f"{series}/Season {s2}"
-        filename = f"{series} - S{s2}E{e2}"
-        return Item(
+        base = self._base(ep_url)
+        variants = []
+        for h in hosters:
+            redirect = h["redirect"]
+            url = redirect if redirect.startswith("http") else base + redirect
+            variants.append(Variant(
+                url=url, language=h["lang"], host=h["host"],
+                needs_resolve=True, resolver_hint=h["host"], quality=quality,
+            ))
+        return Proposal(
             title=f"{series} S{s2}E{e2}",
-            url=embed or chosen["redirect"],
-            kind="video", quality=quality, library=library,
-            dest_rel=dest_rel, filename=filename,
-            needs_resolve=True, resolver_hint=chosen["host"],
-            meta={"series": series, "season": season, "episode": episode,
-                  "language": language, "host": chosen["host"]},
+            kind="video", library=library,
+            dest_rel=f"{series}/Season {s2}",
+            filename=f"{series} - S{s2}E{e2}",
+            variants=variants,
+            meta={"series": series, "season": season, "episode": episode, "url": ep_url},
         )
 
-    def _hosters(self, soup, language, strict=True) -> list[dict]:
-        """Extract [{host, lang, redirect}] from an episode page. Aniworld lists
-        each hoster as a <li> carrying data-link-target (the /redirect/<id> path),
-        a language key, and the hoster's display name."""
+    def _hosters(self, soup) -> list[dict]:
+        """Extract every [{host, lang, redirect}] an episode page offers. No
+        filtering or choosing — that's the Selector's job at Triage."""
         out = []
         for li in soup.select("li[data-link-target]"):
             redirect = li.get("data-link-target")
@@ -124,32 +128,7 @@ class AniworldAdapter(Adapter):
             host = (name_el.get_text(strip=True) or "").lower()
             lang_key = li.get("data-lang-key") or ""
             out.append({"host": host, "lang": self._lang_label(lang_key), "redirect": redirect})
-        if not language:
-            return out  # "any language" — no filtering
-        preferred = [h for h in out if h["lang"] == language]
-        if preferred:
-            return preferred
-        # No host in the requested language: skip (strict) or fall back to all.
-        return [] if strict else out
-
-    def _choose(self, hosters, order) -> dict:
-        def rank(h):
-            for i, name in enumerate(order):
-                if name in h["host"]:
-                    return i
-            return len(order)
-        return sorted(hosters, key=rank)[0]
-
-    def _resolve_redirect(self, base, redirect) -> str | None:
-        """Follow aniworld's /redirect/<id> to the streamhoster embed URL. This is
-        aniworld's own indirection, not hoster deobfuscation."""
-        url = redirect if redirect.startswith("http") else base + redirect
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": _UA})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return r.geturl()  # final URL after aniworld's redirect
-        except Exception:
-            return None
+        return out
 
     # -- naming helpers ----------------------------------------------------
 
