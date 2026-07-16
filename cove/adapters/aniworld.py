@@ -72,15 +72,26 @@ class AniworldAdapter(Adapter):
         html = self._fetch(target)
         soup = BeautifulSoup(html, "html.parser")
         base = self._base(target)
-        urls: list[str] = []
+        # Scope to THIS series' slug so a "latest episodes" widget can't pull in
+        # other anime, and dedupe by (season, episode) so a page that links each
+        # episode many times still yields exactly one URL per episode.
+        m = re.search(r"/anime/stream/([^/?#]+)", target)
+        slug = m.group(1) if m else ""
+        seen: dict[tuple[int, int], str] = {}
         for a in soup.select("a[href*='/episode-']"):
-            href = a.get("href")
-            if not href:
+            href = a.get("href") or ""
+            if slug and slug not in href:
                 continue
-            full = href if href.startswith("http") else base + href
-            if full not in urls:
-                urls.append(full)
-        return urls or [target]
+            em = re.search(r"/episode-(\d+)", href)
+            if not em:
+                continue
+            sm = re.search(r"/staffel-(\d+)", href)
+            key = (int(sm.group(1)) if sm else 1, int(em.group(1)))
+            if key not in seen:
+                seen[key] = href if href.startswith("http") else base + href
+        if not seen:
+            return [target]
+        return [seen[k] for k in sorted(seen)]
 
     # -- one episode -------------------------------------------------------
 
