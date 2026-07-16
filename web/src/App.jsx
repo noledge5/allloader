@@ -441,6 +441,14 @@ function Review({ cove }) {
       cove.flash(`${acting.length} verworfen`); await cove.refresh();
     } finally { setBusy(false); }
   };
+  const clearAll = async () => {
+    if (busy || !proposals.length) return;
+    setBusy(true);
+    try {
+      await api.dismissProposals(proposals.map((p) => p.id));
+      cove.flash("Alle Vorschläge geleert"); await cove.refresh();
+    } finally { setBusy(false); }
+  };
 
   return (
     <div style={{ padding: "30px 32px 60px", maxWidth: 1200, animation: "fadeUp .3s ease" }}>
@@ -469,6 +477,10 @@ function Review({ cove }) {
               <option value="title-desc">Titel Z–A</option>
             </select>
             <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <button onClick={clearAll} disabled={busy} title="Alle Vorschläge löschen (ignoriert Filter)"
+                style={{ ...btn.ghost, padding: "9px 12px", fontSize: 12.5, opacity: busy ? 0.6 : 1 }}>
+                Alles leeren
+              </button>
               <button onClick={dismiss} disabled={busy} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5, opacity: busy ? 0.6 : 1 }}>
                 <Svg d={I.trash} s={13} /> Verwerfen ({acting.length})
               </button>

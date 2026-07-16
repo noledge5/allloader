@@ -155,7 +155,10 @@ def scan_source(sid: str):
     except ValueError:
         settings = {}
     settings.setdefault("selector", "claude")   # Claude pre-selects by default
-    db.clear_proposals(sid)                      # drop this Source's stale pending proposals
+    # Start clean: drop this Source's stale proposals AND any orphans from the
+    # paste flow (source_id NULL), which a per-source clear would otherwise leave.
+    db.clear_proposals(sid)
+    db._q("DELETE FROM proposals WHERE source_id IS NULL AND status='proposed'")
     try:
         created = _stage_proposals(Adapter, s["detail"] or "", settings, source_id=sid)
     except Exception as e:
