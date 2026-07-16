@@ -103,6 +103,16 @@ def _stage_proposals(Adapter, target, settings, source_id=None) -> list[str]:
     """Enumerate into Proposals, let the Selector pre-pick a Variant per Proposal,
     and persist them as `proposed`. Nothing is downloaded — that waits for confirm."""
     proposals = Adapter().enumerate(target, settings)
+    # Belt-and-suspenders on top of the adapter's dedup: never stage the same
+    # episode twice within one scan (keyed by its destination identity).
+    seen, uniq = set(), []
+    for p in proposals:
+        key = (p.dest_rel, p.filename, p.title)
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(p)
+    proposals = uniq
     picks = triage.select(proposals, settings)
     created: list[str] = []
     for p, sel in zip(proposals, picks):

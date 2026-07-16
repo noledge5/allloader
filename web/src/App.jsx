@@ -58,6 +58,7 @@ function useCove() {
   const [schedule, setSchedule] = useState({ row_labels: [], grid: [] });
   const [proposals, setProposals] = useState([]);
   const [ai, setAi] = useState({ configured: false });
+  const [loaded, setLoaded] = useState(false);   // first data load done? (avoids empty-state flash)
   const [toast, setToast] = useState(null);
   const toastTimer = useRef();
 
@@ -76,6 +77,7 @@ function useCove() {
       setDownloads(d); setSources(s); setBatches(b);
       setSchedule(sc || { row_labels: [], grid: [] });
       setProposals(pr || []);
+      setLoaded(true);
     } catch {}
   };
 
@@ -97,7 +99,7 @@ function useCove() {
     return () => { unsub(); clearInterval(poll); };
   }, []);
 
-  return { downloads, sources, batches, schedule, setSchedule, proposals, ai, toast, flash, refresh };
+  return { downloads, sources, batches, schedule, setSchedule, proposals, ai, loaded, toast, flash, refresh };
 }
 
 /* ── app ───────────────────────────────────────────────────────────────── */
@@ -373,6 +375,7 @@ function Review({ cove }) {
   const [host, setHost] = useState("");       // streamhoster filter
   const [q, setQ] = useState("");             // series/title filter
   const [sort, setSort] = useState("title");
+  const [busy, setBusy] = useState(false);    // confirm/dismiss in flight
 
   // Reset the per-row choice to the Selector's pre-pick when the set changes.
   useEffect(() => {
@@ -421,14 +424,22 @@ function Review({ cove }) {
   };
 
   const confirm = async () => {
+    if (busy) return;
     const selections = {};
     for (const id of acting) selections[id] = choice[id] === -1 ? null : choice[id];
-    const r = await api.confirmProposals(selections, acting);
-    cove.flash(`${r.queued} in die Warteschlange`); cove.refresh();
+    setBusy(true);
+    try {
+      const r = await api.confirmProposals(selections, acting);
+      cove.flash(`${r.queued} in die Warteschlange`); await cove.refresh();
+    } finally { setBusy(false); }
   };
   const dismiss = async () => {
-    await api.dismissProposals(acting);
-    cove.flash(`${acting.length} verworfen`); cove.refresh();
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.dismissProposals(acting);
+      cove.flash(`${acting.length} verworfen`); await cove.refresh();
+    } finally { setBusy(false); }
   };
 
   return (
@@ -438,7 +449,7 @@ function Review({ cove }) {
         Vorschläge aus deinen Sources — Sprache prüfen, dann herunterladen. Nichts lädt, bis du bestätigst.
       </p>
 
-      {proposals.length === 0 && <Empty>Keine offenen Vorschläge. Scanne eine Source.</Empty>}
+      {cove.loaded && proposals.length === 0 && <Empty>Keine offenen Vorschläge. Scanne eine Source.</Empty>}
 
       {proposals.length > 0 && (
         <>
@@ -458,11 +469,11 @@ function Review({ cove }) {
               <option value="title-desc">Titel Z–A</option>
             </select>
             <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-              <button onClick={dismiss} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5 }}>
+              <button onClick={dismiss} disabled={busy} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5, opacity: busy ? 0.6 : 1 }}>
                 <Svg d={I.trash} s={13} /> Verwerfen ({acting.length})
               </button>
-              <button onClick={confirm} style={{ ...btn.primary, padding: "9px 16px" }}>
-                <Svg d={I.check} s={14} c="#fff" w={2.4} /> Herunterladen ({acting.length})
+              <button onClick={confirm} disabled={busy} style={{ ...btn.primary, padding: "9px 16px", opacity: busy ? 0.6 : 1 }}>
+                <Svg d={I.check} s={14} c="#fff" w={2.4} /> {busy ? "…" : `Herunterladen (${acting.length})`}
               </button>
             </div>
           </div>
@@ -521,6 +532,7 @@ function Sources({ cove, goReview }) {
   const [detail, setDetail] = useState("");
   const [type, setType] = useState("aniworld");
   const [language, setLanguage] = useState("German Dub");
+  const [scanning, setScanning] = useState(null);   // id of the source being scanned
   const add = async () => {
     if (!name.trim()) return;
     // For aniworld, pass the language filter (strict: skip episodes without it).
@@ -557,7 +569,7 @@ function Sources({ cove, goReview }) {
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {cove.sources.length === 0 && <Empty>No sources yet.</Empty>}
+        {cove.loaded && cove.sources.length === 0 && <Empty>No sources yet.</Empty>}
         {cove.sources.map((s) => (
           <div key={s.id} style={{ background: C.card, borderRadius: 10, padding: "16px 18px", display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 40, height: 40, borderRadius: 9, background: "rgba(151,240,174,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: C.accent }}><Svg d={I.sources} s={18} /></div>
@@ -568,13 +580,19 @@ function Sources({ cove, goReview }) {
               </div>
               <div style={{ fontSize: 12, color: C.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.detail}</div>
             </div>
-            <button onClick={async () => {
+            <button disabled={scanning} onClick={async () => {
+              if (scanning) return;
+              setScanning(s.id);
+              cove.flash(`Scanne „${s.name}" … das kann bei vielen Episoden ~30s dauern`);
               try {
                 const r = await api.scanSource(s.id);
                 cove.flash(`${r.proposed} Vorschläge — bitte im Review bestätigen`);
                 await cove.refresh(); goReview && goReview();
-              } catch (e) { cove.flash("Scan failed: " + e.message); }
-            }} style={{ ...btn.ghost, padding: "8px 14px", fontSize: 12 }}>Re-scan</button>
+              } catch (e) { cove.flash("Scan fehlgeschlagen: " + e.message); }
+              finally { setScanning(null); }
+            }} style={{ ...btn.ghost, padding: "8px 14px", fontSize: 12, opacity: scanning ? 0.6 : 1 }}>
+              {scanning === s.id ? "Scanne…" : "Re-scan"}
+            </button>
             <IconBtn onClick={async () => { await api.removeSource(s.id); cove.refresh(); }} d={I.trash} c={C.dim} big />
           </div>
         ))}
