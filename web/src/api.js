@@ -22,6 +22,7 @@ export const api = {
   cancel: (id) => req("POST", `/api/downloads/${id}/cancel`),
   remove: (id) => req("DELETE", `/api/downloads/${id}`),
   catalog: () => req("GET", "/api/catalog"),
+  pruneCatalog: () => req("POST", "/api/catalog/prune"),
   fileUrl: (id) => `/api/downloads/${id}/file`,
 
   listSources: () => req("GET", "/api/sources"),

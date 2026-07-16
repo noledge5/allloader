@@ -88,7 +88,7 @@ function useCove() {
       if (msg.type === "snapshot") setDownloads(msg.downloads);
       else if (msg.type === "progress") {
         setDownloads((cur) => cur.map((d) => d.id === msg.id
-          ? { ...d, downloaded: msg.downloaded ?? d.downloaded, total: msg.total ?? d.total, status: msg.status || d.status }
+          ? { ...d, downloaded: msg.downloaded ?? d.downloaded, total: msg.total ?? d.total, speed: msg.speed ?? d.speed, status: msg.status || d.status }
           : d));
       } else if (msg.type === "download") {
         setDownloads((cur) => cur.map((d) => d.id === msg.id ? { ...d, status: msg.status } : d));
@@ -262,19 +262,32 @@ function Dashboard({ cove, active, queued, done, onOpen, goLibrary }) {
 }
 
 function ActiveCard({ d, cove }) {
+  const known = d.total > 0;                 // HLS/streamhoster downloads often have no total
   const p = pct(d.downloaded, d.total);
+  const speed = d.speed ? `${human(d.speed)}/s` : null;
   return (
     <div style={{ background: C.card, borderRadius: 10, overflow: "hidden", border: `1px solid rgba(117,119,119,0.14)` }}>
       <div style={{ height: 90, background: grad(d.id), position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Svg d={d.kind === "file" ? "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6" : "M23 7l-7 5 7 5V7zM1 5h15v14H1z"} c="rgba(255,255,255,0.85)" s={26} />
-        <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.5)", color: C.accent, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{Math.round(p)}%</div>
+        <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.5)", color: C.accent, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
+          {known ? `${Math.round(p)}%` : "läuft"}
+        </div>
       </div>
       <div style={{ padding: "13px 15px 15px" }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 3 }}>{d.title || d.filename || d.url}</div>
-        <div style={{ fontSize: 11.5, color: C.dim, marginBottom: 10 }}>{human(d.downloaded)} / {human(d.total)}</div>
-        <div style={bar}><div style={{ ...barFill, width: `${p}%` }} /></div>
+        <div style={{ fontSize: 11.5, color: C.dim, marginBottom: 10 }}>
+          {known ? `${human(d.downloaded)} / ${human(d.total)}` : `${human(d.downloaded)} geladen`}{speed ? ` · ${speed}` : ""}
+        </div>
+        {/* Known size → real bar. Unknown (HLS) → indeterminate animated bar so it's clearly alive. */}
+        {known
+          ? <div style={bar}><div style={{ ...barFill, width: `${p}%` }} /></div>
+          : <div style={{ ...bar, position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", height: "100%", width: "40%", borderRadius: 99, background: "linear-gradient(90deg,transparent,#97f0ae,transparent)", animation: "indet 1.2s ease-in-out infinite" }} />
+            </div>}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-          <span style={{ fontSize: 11, color: C.sub }}>{d.status}</span>
+          <span style={{ fontSize: 11, color: d.status === "failed" ? C.red : C.sub }}>
+            {d.status === "downloading" ? (d.downloaded ? "lädt…" : "startet / löst auf…") : d.status}
+          </span>
           <div style={{ display: "flex", gap: 6 }}>
             <IconBtn onClick={() => api.pause(d.id)} d={I.pause} />
             <IconBtn onClick={() => api.cancel(d.id)} d={I.x} c={C.red} />
@@ -302,17 +315,29 @@ function Library({ done, search, onOpen, cove }) {
         : (b.created_at || 0) - (a.created_at || 0));
 
   const selIds = items.filter((d) => sel[d.id]).map((d) => d.id);
+  const missing = done.filter((d) => d.exists === false).length;
   const removeSelected = async () => {
     for (const id of selIds) await api.remove(id);
     setSel({}); cove.flash(`${selIds.length} gelöscht`); cove.refresh();
+  };
+  const prune = async () => {
+    const r = await api.pruneCatalog();
+    cove.flash(`${r.pruned} fehlende Einträge entfernt`); cove.refresh();
   };
 
   return (
     <div style={{ padding: "30px 32px 60px", maxWidth: 1300, animation: "fadeUp .3s ease" }}>
       <h1 style={hStyle}>Library</h1>
       <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 20px", flexWrap: "wrap" }}>
-        <p style={{ fontSize: 13, color: C.dim, margin: 0 }}>{items.length} Downloads · Plex/Jellyfin streamt</p>
+        <p style={{ fontSize: 13, color: C.dim, margin: 0 }}>
+          {items.length} Downloads · Plex/Jellyfin streamt{missing ? ` · ${missing} fehlen auf der NAS` : ""}
+        </p>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          {missing > 0 && (
+            <button onClick={prune} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5, color: "#e0ac2c", borderColor: "rgba(224,172,44,0.4)" }}>
+              Fehlende aufräumen ({missing})
+            </button>
+          )}
           {buckets.length > 0 && (
             <select value={lib} onChange={(e) => setLib(e.target.value)} style={{ ...inp, width: 140 }}>
               <option value="">Alle Libraries</option>
@@ -337,10 +362,13 @@ function Library({ done, search, onOpen, cove }) {
       {items.length === 0 && <Empty>Noch nichts heruntergeladen.</Empty>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 20 }}>
         {items.map((d) => (
-          <div key={d.id} style={{ position: "relative" }}>
+          <div key={d.id} style={{ position: "relative", opacity: d.exists === false ? 0.5 : 1 }}>
             {pick && (
               <input type="checkbox" checked={!!sel[d.id]} onChange={() => setSel((s) => ({ ...s, [d.id]: !s[d.id] }))}
                 style={{ position: "absolute", top: 8, right: 8, zIndex: 2, width: 18, height: 18, cursor: "pointer" }} />
+            )}
+            {d.exists === false && (
+              <span style={{ position: "absolute", top: 8, left: 8, zIndex: 2, background: "rgba(224,172,44,0.9)", color: "#000", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 99 }}>fehlt</span>
             )}
             <PosterCard d={d} onOpen={pick ? () => setSel((s) => ({ ...s, [d.id]: !s[d.id] })) : onOpen} />
           </div>

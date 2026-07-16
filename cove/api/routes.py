@@ -48,9 +48,19 @@ class ScheduleIn(BaseModel):
 
 # -- downloads -------------------------------------------------------------
 
+def _with_exists(d: dict) -> dict:
+    """Flag whether a completed download's file is still on the NAS, so the UI can
+    show/prune ghosts left when a user deletes the file directly."""
+    if d.get("status") == "completed" and d.get("filename"):
+        d["exists"] = os.path.isfile(os.path.join(d["dest_dir"], d["filename"]))
+    else:
+        d["exists"] = True
+    return d
+
+
 @router.get("/downloads")
 def list_downloads():
-    return db.list_downloads()
+    return [_with_exists(d) for d in db.list_downloads()]
 
 
 def _queue_item(url, kind="file", title=None, quality=None, library=None,
@@ -319,7 +329,17 @@ def ai_triage(did: str):
 
 @router.get("/catalog")
 def catalog():
-    return db.list_downloads(["completed"])
+    return [_with_exists(d) for d in db.list_downloads(["completed"])]
+
+
+@router.post("/catalog/prune")
+def prune_catalog():
+    """Delete Catalog entries whose file is no longer on the NAS (ghosts)."""
+    gone = [d for d in db.list_downloads(["completed"])
+            if d.get("filename") and not os.path.isfile(os.path.join(d["dest_dir"], d["filename"]))]
+    for d in gone:
+        db.delete_download(d["id"])
+    return {"pruned": len(gone)}
 
 
 @router.get("/downloads/{did}/file")
