@@ -370,10 +370,11 @@ function Review({ cove }) {
   const [choice, setChoice] = useState({});   // id -> variant index or -1 (skip)
   const [checked, setChecked] = useState({}); // id -> bool
   const [lang, setLang] = useState("");       // language filter
+  const [host, setHost] = useState("");       // streamhoster filter
   const [q, setQ] = useState("");             // series/title filter
   const [sort, setSort] = useState("title");
 
-  // Initialise the per-row choice from the Selector's pre-pick whenever the set changes.
+  // Reset the per-row choice to the Selector's pre-pick when the set changes.
   useEffect(() => {
     const init = {};
     for (const p of proposals) init[p.id] = p.selected == null ? -1 : p.selected;
@@ -381,10 +382,26 @@ function Review({ cove }) {
   }, [proposals.map((p) => p.id).join(",")]);
 
   const langs = [...new Set(proposals.flatMap((p) => (p.variants || []).map((v) => v.language).filter(Boolean)))];
+  const hosts = [...new Set(proposals.flatMap((p) => (p.variants || []).map((v) => v.host).filter(Boolean)))];
+
+  // Index of the first Variant matching the language+host filter (-1 = none).
+  const matchIdx = (p) => (p.variants || []).findIndex(
+    (v) => (!lang || v.language === lang) && (!host || v.host === host));
+
+  // The language/host filter also DRIVES the choice: setting it bulk-selects that
+  // Variant for every Proposal (skipping ones that don't offer it).
+  useEffect(() => {
+    if (!lang && !host) return;
+    setChoice((c) => {
+      const next = { ...c };
+      for (const p of proposals) next[p.id] = matchIdx(p);
+      return next;
+    });
+  }, [lang, host]); // eslint-disable-line react-hooks/exhaustive-deps
 
   let view = proposals.filter((p) => {
     if (q && !(p.title || "").toLowerCase().includes(q.toLowerCase())) return false;
-    if (lang && !(p.variants || []).some((v) => v.language === lang)) return false;
+    if ((lang || host) && matchIdx(p) === -1) return false;  // filter actually narrows the list
     return true;
   });
   view = [...view].sort((a, b) => sort === "title"
@@ -428,9 +445,13 @@ function Review({ cove }) {
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Serie/Titel filtern…"
               style={{ ...inp, width: 200 }} />
-            <select value={lang} onChange={(e) => setLang(e.target.value)} style={{ ...inp, width: 160 }}>
+            <select value={lang} onChange={(e) => setLang(e.target.value)} style={{ ...inp, width: 150 }}>
               <option value="">Alle Sprachen</option>
               {langs.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <select value={host} onChange={(e) => setHost(e.target.value)} style={{ ...inp, width: 140 }}>
+              <option value="">Alle Hoster</option>
+              {hosts.map((h) => <option key={h} value={h}>{h.toUpperCase()}</option>)}
             </select>
             <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ ...inp, width: 140 }}>
               <option value="title">Titel A–Z</option>
