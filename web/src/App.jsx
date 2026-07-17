@@ -57,6 +57,7 @@ function useCove() {
   const [batches, setBatches] = useState([]);
   const [schedule, setSchedule] = useState({ row_labels: [], grid: [] });
   const [proposals, setProposals] = useState([]);
+  const [library, setLibrary] = useState([]);     // media files actually on the NAS (source of truth)
   const [ai, setAi] = useState({ configured: false });
   const [loaded, setLoaded] = useState(false);   // first data load done? (avoids empty-state flash)
   const [toast, setToast] = useState(null);
@@ -70,13 +71,14 @@ function useCove() {
 
   const refresh = async () => {
     try {
-      const [d, s, b, sc, pr] = await Promise.all([
+      const [d, s, b, sc, pr, lib] = await Promise.all([
         api.listDownloads(), api.listSources(), api.listBatches(), api.getSchedule(),
-        api.listProposals(),
+        api.listProposals(), api.library(),
       ]);
       setDownloads(d); setSources(s); setBatches(b);
       setSchedule(sc || { row_labels: [], grid: [] });
       setProposals(pr || []);
+      setLibrary(lib || []);
       setLoaded(true);
     } catch {}
   };
@@ -99,7 +101,7 @@ function useCove() {
     return () => { unsub(); clearInterval(poll); };
   }, []);
 
-  return { downloads, sources, batches, schedule, setSchedule, proposals, ai, loaded, toast, flash, refresh };
+  return { downloads, sources, batches, schedule, setSchedule, proposals, library, ai, loaded, toast, flash, refresh };
 }
 
 /* ── app ───────────────────────────────────────────────────────────────── */
@@ -116,7 +118,7 @@ export default function App() {
   const { downloads, proposals } = cove;
   const active = downloads.filter((d) => d.status === "downloading");
   const queued = downloads.filter((d) => d.status === "queued");
-  const done = downloads.filter((d) => d.status === "completed");
+  const done = cove.library;   // "downloaded" = what's actually on the NAS (source of truth)
 
   const nav = [
     { key: "dashboard", label: "Dashboard", d: I.dash },
@@ -166,7 +168,7 @@ export default function App() {
         <div style={{ flex: 1, overflowY: "auto" }}>
           {view === "dashboard" && <Dashboard cove={cove} active={active} queued={queued} done={done} onOpen={setPreview} goLibrary={() => setView("library")} />}
           {view === "review" && <Review cove={cove} />}
-          {view === "library" && <Library done={done} search={search} onOpen={setPreview} cove={cove} />}
+          {view === "library" && <Library search={search} onOpen={setPreview} cove={cove} />}
           {view === "sources" && <Sources cove={cove} goReview={() => setView("review")} />}
           {view === "planner" && <Planner cove={cove} onNewBatch={() => setBatchOpen(true)} />}
         </div>
@@ -298,31 +300,30 @@ function ActiveCard({ d, cove }) {
   );
 }
 
-/* ── library (Cove's own catalog) ──────────────────────────────────────── */
-function Library({ done, search, onOpen, cove }) {
+/* ── library (the NAS folder is the source of truth) ───────────────────── */
+function Library({ search, onOpen, cove }) {
+  const files = cove.library || [];
   const [lib, setLib] = useState("");     // library-bucket filter
   const [sort, setSort] = useState("new");
   const [pick, setPick] = useState(false); // multiselect mode
   const [sel, setSel] = useState({});
 
-  const buckets = [...new Set(done.map((d) => d.library).filter(Boolean))];
-  let items = done.filter((d) =>
-    (!search || (d.title || d.filename || "").toLowerCase().includes(search.toLowerCase())) &&
+  const buckets = [...new Set(files.map((d) => d.library).filter(Boolean))];
+  let items = files.filter((d) =>
+    (!search || (d.title || d.name || "").toLowerCase().includes(search.toLowerCase())) &&
     (!lib || d.library === lib));
   items = [...items].sort((a, b) =>
-    sort === "name" ? (a.title || a.filename || "").localeCompare(b.title || b.filename || "")
+    sort === "name" ? (a.rel || "").localeCompare(b.rel || "")
       : sort === "size" ? (b.total || 0) - (a.total || 0)
-        : (b.created_at || 0) - (a.created_at || 0));
+        : (b.mtime || 0) - (a.mtime || 0));
 
-  const selIds = items.filter((d) => sel[d.id]).map((d) => d.id);
-  const missing = done.filter((d) => d.exists === false).length;
+  const selRels = items.filter((d) => sel[d.rel]).map((d) => d.rel);
+  const totalSize = files.reduce((a, d) => a + (d.total || 0), 0);
   const removeSelected = async () => {
-    for (const id of selIds) await api.remove(id);
-    setSel({}); cove.flash(`${selIds.length} gelöscht`); cove.refresh();
-  };
-  const prune = async () => {
-    const r = await api.pruneCatalog();
-    cove.flash(`${r.pruned} fehlende Einträge entfernt`); cove.refresh();
+    if (!selRels.length) return;
+    if (!window.confirm(`${selRels.length} Datei(en) endgültig von der NAS löschen?`)) return;
+    const r = await api.libraryDelete(selRels);
+    setSel({}); setPick(false); cove.flash(`${r.deleted} von der NAS gelöscht`); cove.refresh();
   };
 
   return (
@@ -330,14 +331,9 @@ function Library({ done, search, onOpen, cove }) {
       <h1 style={hStyle}>Library</h1>
       <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 20px", flexWrap: "wrap" }}>
         <p style={{ fontSize: 13, color: C.dim, margin: 0 }}>
-          {items.length} Downloads · Plex/Jellyfin streamt{missing ? ` · ${missing} fehlen auf der NAS` : ""}
+          {items.length} Dateien auf der NAS · {human(totalSize)} · Plex/Jellyfin streamt sie
         </p>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {missing > 0 && (
-            <button onClick={prune} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5, color: "#e0ac2c", borderColor: "rgba(224,172,44,0.4)" }}>
-              Fehlende aufräumen ({missing})
-            </button>
-          )}
           {buckets.length > 0 && (
             <select value={lib} onChange={(e) => setLib(e.target.value)} style={{ ...inp, width: 140 }}>
               <option value="">Alle Libraries</option>
@@ -352,25 +348,22 @@ function Library({ done, search, onOpen, cove }) {
           <button onClick={() => { setPick(!pick); setSel({}); }} style={{ ...btn.ghost, padding: "9px 14px", fontSize: 12.5 }}>
             {pick ? "Fertig" : "Auswählen"}
           </button>
-          {pick && selIds.length > 0 && (
+          {pick && selRels.length > 0 && (
             <button onClick={removeSelected} style={{ ...btn.primary, padding: "9px 14px", background: C.red }}>
-              <Svg d={I.trash} s={13} c="#fff" /> Löschen ({selIds.length})
+              <Svg d={I.trash} s={13} c="#fff" /> Von NAS löschen ({selRels.length})
             </button>
           )}
         </div>
       </div>
-      {items.length === 0 && <Empty>Noch nichts heruntergeladen.</Empty>}
+      {cove.loaded && items.length === 0 && <Empty>Keine Dateien in {`{NAS}`}. Lade etwas herunter — es erscheint automatisch hier.</Empty>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 20 }}>
         {items.map((d) => (
-          <div key={d.id} style={{ position: "relative", opacity: d.exists === false ? 0.5 : 1 }}>
+          <div key={d.rel} style={{ position: "relative" }}>
             {pick && (
-              <input type="checkbox" checked={!!sel[d.id]} onChange={() => setSel((s) => ({ ...s, [d.id]: !s[d.id] }))}
+              <input type="checkbox" checked={!!sel[d.rel]} onChange={() => setSel((s) => ({ ...s, [d.rel]: !s[d.rel] }))}
                 style={{ position: "absolute", top: 8, right: 8, zIndex: 2, width: 18, height: 18, cursor: "pointer" }} />
             )}
-            {d.exists === false && (
-              <span style={{ position: "absolute", top: 8, left: 8, zIndex: 2, background: "rgba(224,172,44,0.9)", color: "#000", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 99 }}>fehlt</span>
-            )}
-            <PosterCard d={d} onOpen={pick ? () => setSel((s) => ({ ...s, [d.id]: !s[d.id] })) : onOpen} />
+            <PosterCard d={d} onOpen={pick ? () => setSel((s) => ({ ...s, [d.rel]: !s[d.rel] })) : onOpen} />
           </div>
         ))}
       </div>
@@ -858,24 +851,36 @@ function BatchModal({ cove, onClose }) {
 
 /* ── preview (direct-play) ─────────────────────────────────────────────── */
 function Preview({ item, onClose, cove }) {
-  const isVideo = (item.kind === "video") || /\.(mp4|webm|mov|m4v)$/i.test(item.filename || "");
+  // Library items are files on disk (have `rel`); Dashboard items are DB downloads.
+  const onDisk = !!item.rel;
+  const src = onDisk ? api.libraryFileUrl(item.rel) : api.fileUrl(item.id);
+  const isVideo = (item.kind === "video") || /\.(mp4|webm|mov|m4v)$/i.test(item.filename || item.name || "");
+  const del = async () => {
+    if (onDisk) {
+      if (!window.confirm("Datei endgültig von der NAS löschen?")) return;
+      await api.libraryDelete([item.rel]);
+    } else {
+      await api.remove(item.id);
+    }
+    cove.refresh(); onClose();
+  };
   return (
     <div onClick={onClose} style={overlay(100)}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.card, borderRadius: 14, width: "100%", maxWidth: 860, overflow: "hidden", border: `1px solid rgba(117,119,119,0.15)`, display: "grid", gridTemplateColumns: "1.5fr 1fr" }}>
-        <div style={{ background: grad(item.id), minHeight: 340, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+        <div style={{ background: grad(item.id || item.rel), minHeight: 340, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
           {isVideo
-            ? <video src={api.fileUrl(item.id)} controls autoPlay style={{ width: "100%", height: "100%", maxHeight: 480, background: "#000" }} />
+            ? <video src={src} controls autoPlay style={{ width: "100%", height: "100%", maxHeight: 480, background: "#000" }} />
             : <Svg d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6" c="rgba(255,255,255,0.85)" s={54} />}
           <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: "50%", background: "rgba(0,0,0,0.5)", border: "none", color: "#fff", cursor: "pointer" }}><Svg d={I.x} s={14} /></button>
         </div>
         <div style={{ padding: "24px 22px", display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, color: C.accent, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>{item.kind}</div>
-          <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 700, color: C.head, marginBottom: 8 }}>{item.title || item.filename}</div>
-          <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 18 }}>{item.quality || ""} · {human(item.total)}</div>
-          {!isVideo && <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 18 }}>Direct-play preview supports browser-native video. This file will open in Plex/Jellyfin or download.</div>}
+          <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 700, color: C.head, marginBottom: 8 }}>{item.title || item.filename || item.name}</div>
+          <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 18 }}>{item.rel || item.quality || ""} · {human(item.total)}</div>
+          {!isVideo && <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 18 }}>Vorschau unterstützt browser-native Formate. Diese Datei öffnest du in Plex/Jellyfin oder lädst sie herunter.</div>}
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-            <a href={api.fileUrl(item.id)} download style={{ ...btn.primary, justifyContent: "center", padding: 11 }}>Download file</a>
-            <button onClick={async () => { await api.remove(item.id); cove.refresh(); onClose(); }} style={{ padding: 11, borderRadius: 8, border: `1.5px solid rgba(185,64,64,0.35)`, background: "transparent", color: C.red, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Remove from Cove</button>
+            <a href={src} download style={{ ...btn.primary, justifyContent: "center", padding: 11 }}>Datei herunterladen</a>
+            <button onClick={del} style={{ padding: 11, borderRadius: 8, border: `1.5px solid rgba(185,64,64,0.35)`, background: "transparent", color: C.red, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{onDisk ? "Von NAS löschen" : "Aus Cove entfernen"}</button>
           </div>
         </div>
       </div>

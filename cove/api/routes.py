@@ -342,6 +342,44 @@ def prune_catalog():
     return {"pruned": len(gone)}
 
 
+# -- library (the NAS folder IS the source of truth) -----------------------
+
+@router.get("/library")
+def library():
+    """The media files actually on the NAS — the Library's source of truth, not
+    Cove's DB. Reflects reality: no phantom rows, no duplicates a folder can't have."""
+    return nas.scan_library()
+
+
+class DeleteFiles(BaseModel):
+    rels: list[str]
+
+
+@router.post("/library/delete")
+def library_delete(body: DeleteFiles):
+    """Delete the actual file(s) from the NAS (confined to NAS_BASE)."""
+    n = 0
+    for rel in body.rels:
+        try:
+            if nas.delete(rel):
+                n += 1
+        except ValueError:
+            continue
+    return {"deleted": n}
+
+
+@router.get("/library/file")
+def library_file(rel: str):
+    """Serve a library file by its NAS-relative path (Range-enabled for scrubbing)."""
+    try:
+        path = nas._safe(rel)
+    except ValueError:
+        raise HTTPException(400, "bad path")
+    if not path.is_file():
+        raise HTTPException(404, "not found")
+    return FileResponse(str(path), filename=path.name)
+
+
 @router.get("/downloads/{did}/file")
 def download_file(did: str):
     """Serve a completed download for the direct-play preview. FileResponse

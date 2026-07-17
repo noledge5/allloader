@@ -25,6 +25,10 @@ export const api = {
   pruneCatalog: () => req("POST", "/api/catalog/prune"),
   fileUrl: (id) => `/api/downloads/${id}/file`,
 
+  library: () => req("GET", "/api/library"),
+  libraryDelete: (rels) => req("POST", "/api/library/delete", { rels }),
+  libraryFileUrl: (rel) => `/api/library/file?rel=${encodeURIComponent(rel)}`,
+
   listSources: () => req("GET", "/api/sources"),
   addSource: (b) => req("POST", "/api/sources", b),
   removeSource: (id) => req("DELETE", `/api/sources/${id}`),

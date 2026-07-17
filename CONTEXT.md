@@ -72,9 +72,13 @@ A top-level bucket on the NAS that downloads land in (e.g. `Movies`, `TV`, `Anim
 `Movies/<Title> (Year)/<Title> (Year).ext`, `TV/<Show>/Season NN/<Show> - SxxEyy.ext`.
 
 **Catalog**:
-Cove's own view of the items it has downloaded, with a light **direct-play preview**
-(browser-native playback of compatible files; no server transcoding). Not a scan of the
-whole NAS — full library browsing/streaming is Plex/Jellyfin's job.
+Cove's view of the media **actually present on the NAS** — a scan of the **Library**
+destination folders is the **source of truth**, NOT Cove's download DB. So a reset DB, a
+duplicate download, or a file deleted directly on the NAS all just reflect reality (no
+phantom rows, no duplicates a folder can't have). Offers a light **direct-play preview**
+(browser-native playback; no server transcoding) and delete (removes the file on disk).
+The download DB tracks only in-flight work (queued/running/failed) — not what's "done".
+_Avoid_: Library (that's the on-disk destination bucket).
 _Avoid_: Library (that's the on-disk destination).
 
 **Intake**:
