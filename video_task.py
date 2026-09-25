@@ -9,6 +9,7 @@ current fragment cleanly and keeps whatever is already on disk.
 """
 
 import os
+import shutil
 import threading
 import time
 
@@ -20,9 +21,10 @@ try:
     FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 except Exception:
     # Bundled ffmpeg failed to install (e.g. pip timeout) or isn't supported
-    # on this platform. yt-dlp still works without it, just without stream
-    # merging/audio-conversion — see _run() below.
-    FFMPEG_PATH = None
+    # on this platform (the Docker image installs ffmpeg system-wide instead).
+    # yt-dlp still works without it, just without stream merging/audio
+    # conversion — see _run() below.
+    FFMPEG_PATH = shutil.which("ffmpeg")
 
 
 class _PausedError(Exception):
@@ -74,6 +76,8 @@ class VideoTask:
                 "eta": eta,
                 "error": self.error,
                 "kind": "video",
+                "audio_only": self.audio_only,
+                "output_dir": self.output_dir,
             }
 
     def start(self):
@@ -166,7 +170,12 @@ class VideoTask:
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([self.url])
+                info = ydl.extract_info(self.url, download=True)
+            # Progress hooks only see intermediate names (video.f137.mp4);
+            # report the final file after merging/conversion.
+            final = ((info or {}).get("requested_downloads") or [{}])[0].get("filepath")
+            if final:
+                self.filename = os.path.basename(final)
             self.status = "completed"
             self._notify(force=True)
         except _PausedError:

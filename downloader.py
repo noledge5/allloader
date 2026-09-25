@@ -21,7 +21,10 @@ from video_task import VideoTask
 TIMEOUT = 30
 CHUNK = 256 * 1024
 META_SUFFIX = ".part.json"
-STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tasks_state.json")
+# In the container the state lives in a mounted volume (ALLLOADER_STATE_DIR).
+STATE_DIR = os.environ.get("ALLLOADER_STATE_DIR") or os.path.dirname(os.path.abspath(__file__))
+os.makedirs(STATE_DIR, exist_ok=True)
+STATE_FILE = os.path.join(STATE_DIR, "tasks_state.json")
 NOTIFY_INTERVAL = 2.0  # throttle for progress-only persistence writes
 
 
@@ -83,6 +86,7 @@ class DownloadTask:
                 "eta": eta,
                 "error": self.error,
                 "kind": "file",
+                "output_dir": self.output_dir,
             }
 
     def start(self):
@@ -328,6 +332,14 @@ class Manager:
         with self._lock:
             self.tasks.pop(task_id, None)
         self._save_state()
+
+    def remove_finished(self):
+        with self._lock:
+            done = [tid for tid, t in self.tasks.items() if t.status in ("completed", "canceled")]
+            for tid in done:
+                self.tasks.pop(tid, None)
+        self._save_state()
+        return len(done)
 
     # -- persistence --------------------------------------------------
 

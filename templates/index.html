@@ -2,46 +2,89 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Resume Download Manager</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111a17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f6f5" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="allloader">
+<meta name="format-detection" content="telephone=no">
+<title>allloader</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-<header>
-  <h1>Resume Download Manager</h1>
-  <p class="sub">Große Dateien laden, pausieren, fortsetzen — ohne Browser-Abbrüche.</p>
+<body class="offline" data-default-dir="{{ default_dir }}">
+<header class="topbar">
+  <h1>allloader</h1>
+  <span class="conn"><span class="dot"></span><span class="conn-text">Offline</span></span>
+  <button type="button" class="icon-btn" id="help-btn" aria-label="Hilfe und Kurzbefehl">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 9a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 4M12 17h.01M12 21a9 9 0 110-18 9 9 0 010 18z"/></svg>
+  </button>
 </header>
 <main>
-  <div class="tabs">
-    <button type="button" class="tab active" data-mode="file">Datei</button>
-    <button type="button" class="tab" data-mode="video">Video</button>
-  </div>
-  <form id="add-form">
-    <input type="url" id="url" placeholder="Link einfügen (https://...)" required>
-    <div class="row">
-      <input type="text" id="output_dir" placeholder="Zielordner" value="{{ default_dir }}">
-      <input type="text" id="filename" placeholder="Dateiname (optional)" data-mode="file">
+  <form id="add-form" class="card" autocomplete="off">
+    <div class="url-row">
+      <input type="url" id="url" class="input" placeholder="Link einfügen (https://…)" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+      <button type="button" class="icon-btn outline" id="paste-btn" aria-label="Aus Zwischenablage einfügen" hidden>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9zM8 5H6v15h12V5h-2"/></svg>
+      </button>
     </div>
-    <input type="text" id="header" placeholder="Header (optional, z.B. Authorization: Bearer TOKEN)" data-mode="file">
-    <select id="quality" data-mode="video" hidden>
-      <option value="best">Beste verfügbare Qualität</option>
-      <option value="1080">Bis 1080p</option>
-      <option value="720">Bis 720p</option>
-      <option value="480">Bis 480p</option>
-    </select>
-    <label class="checkbox-row" data-mode="video" hidden>
-      <input type="checkbox" id="audio_only">
-      Nur Audio extrahieren (MP3)
-    </label>
-    <p class="hint" data-mode="video" hidden>
-      Funktioniert mit YouTube, Vimeo, TikTok, X/Twitter, Reddit, SoundCloud
-      und hunderten weiteren Seiten. Bitte nur Inhalte laden, an denen du die
-      Rechte hast (eigene Videos, gemeinfreie Inhalte, o.ä.).
-    </p>
-    <button type="submit" id="submit-btn">Download starten</button>
+    <div class="segmented" id="kind" role="radiogroup" aria-label="Art">
+      <button type="button" data-kind="auto" class="on">Automatisch</button>
+      <button type="button" data-kind="file">Datei</button>
+      <button type="button" data-kind="video">Video</button>
+      <button type="button" data-kind="audio">Audio</button>
+    </div>
+    <p class="hint" id="kind-hint">Videoseiten (YouTube, Vimeo, …) werden erkannt, alles andere als Datei geladen.</p>
+
+    <label class="label" for="target-btn">Speichern in</label>
+    <button type="button" class="input target-btn" id="target-btn" hidden>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/></svg>
+      <span class="target-text"></span>
+      <svg class="icon muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+    <input type="text" id="output_dir" class="input" placeholder="Zielordner" hidden>
+
+    <details class="more">
+      <summary>Mehr Optionen</summary>
+      <div class="more-body">
+        <label class="label" for="filename" data-for="file">Dateiname (optional)</label>
+        <input type="text" id="filename" class="input" data-for="file" autocapitalize="off" spellcheck="false">
+        <label class="label" for="header" data-for="file">Header (optional)</label>
+        <input type="text" id="header" class="input" data-for="file" placeholder="z.B. Authorization: Bearer hf_…" autocapitalize="off" spellcheck="false">
+        <label class="label" for="quality" data-for="video">Videoqualität</label>
+        <select id="quality" class="input select" data-for="video">
+          <option value="best">Beste verfügbare</option>
+          <option value="2160">Bis 2160p (4K)</option>
+          <option value="1080">Bis 1080p</option>
+          <option value="720">Bis 720p</option>
+          <option value="480">Bis 480p</option>
+        </select>
+      </div>
+    </details>
+
+    <button type="submit" class="btn primary block" id="submit-btn">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>
+      Herunterladen
+    </button>
   </form>
-  <ul id="tasks"></ul>
+
+  <div class="list-head">
+    <div class="segmented small" id="filter" role="tablist">
+      <button type="button" data-filter="active" class="on">Aktiv <span class="count" data-count="active"></span></button>
+      <button type="button" data-filter="done">Fertig <span class="count" data-count="done"></span></button>
+      <button type="button" data-filter="all">Alle</button>
+    </div>
+  </div>
+  <ul id="tasks" class="tasks"></ul>
+  <p id="empty" class="empty muted" hidden></p>
+  <button type="button" class="btn ghost block" id="clear-btn" hidden>Fertige aus der Liste entfernen</button>
 </main>
+<div id="sheet-root"></div>
+<div id="toast-root" aria-live="polite"></div>
 <script src="/static/app.js"></script>
 </body>
 </html>

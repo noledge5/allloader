@@ -1,0 +1,28 @@
+# Projekt für den Synology Container Manager (siehe README, Abschnitt Synology).
+services:
+  allloader:
+    build: .
+    container_name: allloader
+    restart: unless-stopped
+    ports:
+      # Handy-Adresse: http://IP-DER-SYNOLOGY:8765
+      - "8765:8080"
+    environment:
+      # Zielordner, zwischen denen du in der App wählen kannst (Name=Pfad im Container).
+      - DOWNLOAD_ROOTS=Downloads=/downloads
+      # Weitere Ordner: Zeile oben z.B. so erweitern und unten bei volumes einhängen:
+      # - DOWNLOAD_ROOTS=Downloads=/downloads,KI-Modelle=/models,Videos=/videos
+      - TZ=Europe/Berlin
+      # Optional: Passwort für die App (und für den iOS-Kurzbefehl).
+      # - ALLLOADER_PASSWORD=mein-geheimes-passwort
+      # yt-dlp beim Start nicht aktualisieren:
+      # - YTDLP_AUTO_UPDATE=0
+    volumes:
+      # Links: Ordner auf der Synology, rechts: Pfad im Container.
+      - /volume1/downloads:/downloads
+      # - /volume1/ki-modelle:/models
+      # - /volume1/video:/videos
+      - ./config:/config
+    # Optional: Dateien als dein DSM-Benutzer statt als root anlegen
+    # (UID:GID, z.B. per SSH mit "id" herausfinden).
+    # user: "1026:100"

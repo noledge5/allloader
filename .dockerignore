@@ -1,0 +1,7 @@
+.git
+comfyui-mobile
+config
+__pycache__
+*.pyc
+tasks_state.json*
+start.bat
