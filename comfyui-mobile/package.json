@@ -1,0 +1,9 @@
+{
+  "name": "comfyui-mobile",
+  "private": true,
+  "type": "module",
+  "description": "Touch-friendly phone UI for ComfyUI, served by ComfyUI itself",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

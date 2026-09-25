@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15171c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ComfyUI">
+<meta name="format-detection" content="telephone=no">
+<title>ComfyUI Mobile</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="offline">
+<header class="topbar">
+  <h1 id="view-title">Erstellen</h1>
+  <span class="conn" title="Verbindung"><span class="dot"></span><span class="conn-text">Offline</span></span>
+</header>
+<main>
+  <section id="view-create" class="view"></section>
+  <section id="view-queue" class="view"></section>
+  <section id="view-gallery" class="view"></section>
+  <section id="view-system" class="view"></section>
+</main>
+<nav class="tabbar" aria-label="Bereiche">
+  <button data-view="create">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4L12 3zm6 11l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9L18 14zM6 15l.7 1.6 1.6.7-1.6.7L6 19.6l-.7-1.6-1.6-.7 1.6-.7L6 15z"/></svg>
+    <span>Erstellen</span>
+  </button>
+  <button data-view="queue">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    <span>Warteschlange</span>
+    <span id="queue-badge" class="badge" hidden></span>
+  </button>
+  <button data-view="gallery">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 15l4.5-4.5 4 4 3-3L20 16M15.5 9.5h.01"/></svg>
+    <span>Galerie</span>
+  </button>
+  <button data-view="system">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H4zM9 19h6M12 15v4"/></svg>
+    <span>System</span>
+  </button>
+</nav>
+<div id="sheet-root"></div>
+<div id="toast-root" aria-live="polite"></div>
+<noscript>Bitte JavaScript aktivieren.</noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

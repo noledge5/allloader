@@ -1,5 +1,8 @@
 # Resume Download Manager
 
+> **Neu im Repo:** [`comfyui-mobile/`](comfyui-mobile/README.md) – eine
+> Handy-Oberfläche (Web-App fürs iPhone) für ComfyUI Desktop.
+
 Lokale Web-App zum Herunterladen großer Dateien (z.B. 20+ GB Transformer-Modelle)
 mit Pause/Fortsetzen — läuft im Browser, kein Terminal nötig für die Bedienung.
 Zweiter Tab "Video" lädt Videos/Audio von YouTube, Vimeo, TikTok und hunderten
