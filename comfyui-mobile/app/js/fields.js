@@ -40,8 +40,13 @@ function header(f, ctx) {
           "button",
           {
             class: `pin-btn${pinned ? " on" : ""}`,
-            "aria-label": pinned ? "Aus Schnellzugriff entfernen" : "Zum Schnellzugriff",
-            onclick: () => ctx.onTogglePin(f),
+            "aria-label": pinned ? "Vom Hauptbildschirm entfernen" : "Auf den Hauptbildschirm",
+            onclick: (e) => {
+              ctx.onTogglePin(f);
+              const on = !!ctx.pins?.has(f.id);
+              e.currentTarget.classList.toggle("on", on);
+              e.currentTarget.setAttribute("aria-label", on ? "Vom Hauptbildschirm entfernen" : "Auf den Hauptbildschirm");
+            },
           },
           icon("star")
         )
@@ -57,7 +62,7 @@ export function renderField(f, value, ctx) {
   else if (f.type === "INT" || f.type === "FLOAT") control = numberControl(f, value, set);
   else if (f.type === "BOOLEAN") control = toggleControl(f, value, set);
   else if (f.type === "COMBO") control = comboControl(f, value, set, ctx);
-  else if (f.multiline) control = textArea(f, value, set);
+  else if (f.multiline) control = textArea(f, value, set, ctx);
   else control = h("input", { id: `f-${f.id}`, type: "text", class: "input", value: value ?? "", oninput: (e) => set(e.target.value) });
 
   const error = ctx.errors?.get(f.id);
@@ -70,7 +75,7 @@ export function renderField(f, value, ctx) {
   );
 }
 
-function textArea(f, value, set) {
+function textArea(f, value, set, ctx) {
   const ta = h("textarea", {
     id: `f-${f.id}`,
     class: "input textarea",
@@ -88,7 +93,44 @@ function textArea(f, value, set) {
     fit();
   });
   requestAnimationFrame(fit);
-  return ta;
+  if (!ctx.onAutoprompt) return ta;
+
+  // Autoprompter button with a one-step undo.
+  let previous = null;
+  const undo = h(
+    "button",
+    {
+      class: "tool-btn",
+      hidden: true,
+      onclick: () => {
+        if (previous == null) return;
+        ta.value = previous;
+        set(previous);
+        fit();
+        previous = null;
+        undo.hidden = true;
+      },
+    },
+    icon("reuse"),
+    "Rückgängig"
+  );
+  const magic = h(
+    "button",
+    {
+      class: "tool-btn accent",
+      onclick: () =>
+        ctx.onAutoprompt(f, ta.value, (next) => {
+          previous = ta.value;
+          ta.value = next;
+          set(next);
+          fit();
+          undo.hidden = false;
+        }),
+    },
+    icon("create"),
+    f.role === "negative" ? "Negativ erzeugen" : "Autoprompt"
+  );
+  return h("div", { class: "ta-wrap" }, ta, h("div", { class: "ta-tools" }, magic, undo));
 }
 
 function numberControl(f, value, set) {

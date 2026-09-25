@@ -54,10 +54,19 @@ export class ComfyApi extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, { detail }));
   }
 
-  async request(path, options = {}) {
+  request(path, options = {}) {
+    return this.fetchParsed(this.url(path), options);
+  }
+
+  // Routes of the ComfyUI Mobile extension itself (under /mobile).
+  mobileRequest(path, options = {}) {
+    return this.fetchParsed(`${this.base}/mobile${path}`, options);
+  }
+
+  async fetchParsed(url, options = {}) {
     let res;
     try {
-      res = await fetch(this.url(path), { cache: "no-store", ...options });
+      res = await fetch(url, { cache: "no-store", ...options });
     } catch (e) {
       throw new ApiError("Keine Verbindung zu ComfyUI.", 0, null);
     }
@@ -304,6 +313,32 @@ export class ComfyApi extends EventTarget {
   async mobileInfo() {
     const res = await fetch(`${this.base}/mobile/info`, { cache: "no-store" });
     return res.ok ? res.json() : null;
+  }
+
+  // --- autoprompter ----------------------------------------------------------
+
+  autopromptSettings() {
+    return this.mobileRequest("/api/autoprompt/settings");
+  }
+
+  saveAutopromptSettings(patch) {
+    return this.mobileRequest("/api/autoprompt/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  autopromptModels() {
+    return this.mobileRequest("/api/autoprompt/models");
+  }
+
+  autoprompt(body) {
+    return this.mobileRequest("/api/autoprompt/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
   }
 }
 

@@ -118,7 +118,7 @@ class App {
         // Websocket events for a fast run can beat this response, so don't
         // touch the status here (new jobs start as "pending").
         const job = this.job(res.prompt_id);
-        Object.assign(job, { name: t.name, prompt, mine: true, queuedAt: Date.now() });
+        Object.assign(job, { name: t.name, prompt, mine: true, queuedAt: Date.now(), templateKey: t.key });
         if (Object.keys(res.node_errors ?? {}).length) {
           toast("Einige Ausgabe-Nodes haben Fehler und werden übersprungen.", { error: true, duration: 5000 });
         }

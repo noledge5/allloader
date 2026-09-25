@@ -1,4 +1,4 @@
-import { bytes, clear, h, icon, toast } from "../ui.js";
+import { bytes, clear, h, icon, pickOption, toast } from "../ui.js";
 
 const PREVIEW_METHODS = [
   ["auto", "Automatisch"],
@@ -44,14 +44,17 @@ export class SystemView {
     this.app = app;
     this.title = "System";
     this.root = document.getElementById("view-system");
+    // Kept across refreshes so a half-typed API key survives reconnects.
+    this.autoCard = h("section", { class: "card", id: "autoprompt-settings" }, h("h3", { class: "section-title" }, "Autoprompter"), h("div", { class: "spinner small" }));
   }
 
   show() {
+    if (!this.autoCard.contains(document.activeElement)) this.fillAutoCard();
     this.refresh();
   }
 
   onReselect() {
-    this.refresh();
+    this.show();
   }
 
   async refresh() {
@@ -60,6 +63,180 @@ export class SystemView {
       this.app.api.mobileInfo().catch(() => null),
     ]);
     this.render(stats, info);
+  }
+
+  focusAutoprompt() {
+    this.autoCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // --- autoprompter settings -------------------------------------------------
+
+  async fillAutoCard() {
+    const card = this.autoCard;
+    let s;
+    try {
+      s = await this.app.api.autopromptSettings();
+    } catch (e) {
+      clear(card, h("h3", { class: "section-title" }, "Autoprompter"), h("p", { class: "muted" }, e.message));
+      return;
+    }
+    const api = this.app.api;
+    const save = async (patch, rerender = false) => {
+      try {
+        s = await api.saveAutopromptSettings(patch);
+        if (rerender) this.fillAutoCard();
+      } catch (e) {
+        toast(e.message, { error: true });
+      }
+    };
+
+    const provider = h(
+      "select",
+      { class: "input select", onchange: (e) => save({ provider: e.target.value }, true) },
+      [
+        ["openrouter", "OpenRouter"],
+        ["openai", "OpenAI"],
+        ["custom", "Eigene Adresse (LM Studio, Ollama …)"],
+      ].map(([v, label]) => h("option", { value: v, selected: v === s.provider }, label))
+    );
+
+    const baseUrl =
+      s.provider === "custom"
+        ? h("input", {
+            class: "input",
+            type: "url",
+            value: s.base_url,
+            placeholder: "http://127.0.0.1:1234/v1",
+            autocapitalize: "off",
+            spellcheck: "false",
+            onchange: (e) => save({ base_url: e.target.value }),
+          })
+        : null;
+
+    const keyInput = h("input", {
+      class: "input",
+      type: "password",
+      autocomplete: "off",
+      placeholder: s.has_key ? `gespeichert (…${s.key_hint || "••••"})` : s.provider === "custom" ? "meist nicht nötig" : "API-Key einfügen",
+    });
+    const keyRow = h(
+      "div",
+      { class: "row" },
+      keyInput,
+      h(
+        "button",
+        {
+          class: "btn",
+          onclick: async () => {
+            if (!keyInput.value.trim()) return;
+            await save({ api_key: keyInput.value.trim() }, true);
+            toast("API-Key gespeichert");
+          },
+        },
+        "Speichern"
+      )
+    );
+
+    const modelBtn = h(
+      "button",
+      {
+        class: `input picker-btn${s.model ? "" : " warn"}`,
+        onclick: async () => {
+          let models;
+          try {
+            models = await api.autopromptModels();
+          } catch (e) {
+            toast(`Modelle konnten nicht geladen werden: ${e.message}`, { error: true, duration: 5000 });
+            return;
+          }
+          if (!models.length) return toast("Der Anbieter hat keine Modelle gemeldet.", { error: true });
+          const names = new Map(models.map((m) => [m.id, m.name]));
+          const v = await pickOption({
+            title: "Modell für den Autoprompter",
+            options: models.map((m) => m.id),
+            value: s.model,
+            describe: (id) => (names.get(id) !== id ? names.get(id) : ""),
+          });
+          if (v !== undefined) save({ model: v }, true);
+        },
+      },
+      h("span", { class: "picker-text" }, h("span", { class: "picker-name" }, s.model || "Modell wählen…")),
+      icon("down")
+    );
+
+    const styleSeg = h(
+      "div",
+      { class: "segmented" },
+      [
+        ["natural", "Natürliche Sprache"],
+        ["tags", "Tags (SD 1.5, Pony …)"],
+      ].map(([v, label]) =>
+        h(
+          "button",
+          {
+            class: v === s.prompt_style ? "on" : "",
+            onclick: (e) => {
+              for (const b of styleSeg.children) b.classList.toggle("on", b === e.currentTarget);
+              save({ prompt_style: v });
+            },
+          },
+          label
+        )
+      )
+    );
+
+    const instructions = h("textarea", {
+      class: "input textarea",
+      rows: 2,
+      value: s.instructions,
+      placeholder: "Optional, z.B. „Immer im Stil analoger Fotografie“",
+      onchange: (e) => save({ instructions: e.target.value }),
+    });
+
+    const testOut = h("div");
+    const testBtn = h(
+      "button",
+      {
+        class: "btn",
+        onclick: async () => {
+          testBtn.disabled = true;
+          clear(testOut, h("div", { class: "spinner small" }));
+          try {
+            const res = await api.autoprompt({ text: "ein Fuchs im Schnee", mode: "expand" });
+            clear(testOut, h("p", { class: "ap-test" }, res.text));
+          } catch (e) {
+            clear(testOut, h("p", { class: "notice error" }, e.message));
+          } finally {
+            testBtn.disabled = false;
+          }
+        },
+      },
+      icon("create"),
+      "Testen"
+    );
+
+    clear(
+      card,
+      h("h3", { class: "section-title" }, "Autoprompter"),
+      h("p", { class: "muted small" }, "Erweitert und verbessert Prompts mit einem Sprachmodell. Der API-Key bleibt auf dem PC."),
+      h("label", { class: "setting" }, h("span", null, "Anbieter"), provider),
+      baseUrl ? h("label", { class: "setting" }, h("span", null, "Adresse (OpenAI-kompatibel)"), baseUrl) : null,
+      h(
+        "div",
+        { class: "setting" },
+        h("span", null, "API-Key"),
+        keyRow,
+        s.key_from_env ? h("span", { class: "small" }, "Kommt aus einer Umgebungsvariable am PC.") : null,
+        s.has_key && !s.key_from_env
+          ? h("button", { class: "link-btn", onclick: () => window.confirm("API-Key löschen?") && save({ clear_key: true }, true) }, "Key löschen")
+          : null
+      ),
+      h("div", { class: "setting" }, h("span", null, "Modell"), modelBtn),
+      h("div", { class: "setting" }, h("span", null, "Prompt-Stil"), styleSeg),
+      h("label", { class: "setting" }, h("span", null, "Eigene Anweisung"), instructions),
+      h("div", { class: "btn-row" }, testBtn),
+      testOut
+    );
   }
 
   render(stats, info) {
@@ -139,6 +316,7 @@ export class SystemView {
             )
           )
         : null,
+      this.autoCard,
       h(
         "section",
         { class: "card" },

@@ -1,4 +1,5 @@
 import { fileKind } from "../api.js";
+import { openAutoprompt } from "../autoprompt.js";
 import { renderField, renderSizePair } from "../fields.js";
 import {
   applyDynamicCombo,
@@ -19,17 +20,41 @@ const STATUS_TEXT = {
   cancelled: "Abgebrochen",
 };
 
+const LAST_RESULT_PREFIX = "comfy-mobile.last.";
+
+function mediaFiles(job) {
+  const files = (job?.outputs ?? []).filter((o) => ["image", "video"].includes(fileKind(o)));
+  return files.sort((a, b) => (a.type === "output" ? 0 : 1) - (b.type === "output" ? 0 : 1));
+}
+
+function loadLastResult(key) {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_RESULT_PREFIX + key) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveLastResult(key, value) {
+  try {
+    localStorage.setItem(LAST_RESULT_PREFIX + key, JSON.stringify(value));
+  } catch {}
+}
+
 export class CreateView {
   constructor(app) {
     this.app = app;
     this.title = "Erstellen";
     this.root = document.getElementById("view-create");
     this.content = h("div", { class: "create-content" });
+    // Preview while generating, result afterwards. Kept across re-renders.
+    this.stage = h("section", { class: "stage", hidden: true });
+    this.stageKey = null;
+    this.stageVisible = false;
     this.runCard = h("div", { class: "run-card", hidden: true });
     this.count = 1;
     this.errors = new Map();
     this.errorList = [];
-    this.showAll = false;
     this.countBtn = h("button", { class: "count-btn", "aria-label": "Anzahl Läufe", onclick: () => this.cycleCount() }, "×1");
     this.goBtn = h(
       "button",
@@ -39,6 +64,17 @@ export class CreateView {
     );
     this.dock = h("div", { class: "dock" }, this.runCard, h("div", { class: "gen-bar" }, this.countBtn, this.goBtn));
     this.root.append(this.content, this.dock);
+    // The small run card in the dock is only needed when the big stage is
+    // scrolled out of view.
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(
+        ([entry]) => {
+          this.stageVisible = entry.isIntersecting;
+          this.updateRunCard();
+        },
+        { threshold: 0.2 }
+      ).observe(this.stage);
+    }
   }
 
   cycleCount() {
@@ -47,7 +83,8 @@ export class CreateView {
     this.countBtn.textContent = `×${this.count}`;
   }
 
-  get ctx() {
+  // Callbacks for the field controls. `rerender` redraws whatever shows them.
+  makeCtx(rerender) {
     const app = this.app;
     const t = app.template;
     return {
@@ -57,31 +94,41 @@ export class CreateView {
       pins: this.model?.pins,
       onChange: (f, v) => {
         t.prompt[f.nodeId].inputs[f.input] = v;
-        if (this.errors.delete(f.id)) this.root.querySelector(`[data-field="${CSS.escape(f.id)}"]`)?.classList.remove("has-error");
+        if (this.errors.delete(f.id)) document.querySelector(`[data-field="${CSS.escape(f.id)}"]`)?.classList.remove("has-error");
         app.persistTemplate();
       },
       onStructureChange: (f) => {
         applyDynamicCombo(t.prompt[f.nodeId], f.input, f.spec);
         t.uiStale = true;
         app.persistTemplate();
-        this.render();
+        rerender();
       },
-      rerender: () => this.render(),
+      rerender,
       getControl: (f) => t.controls[f.nodeId]?.[f.input],
       setControl: (f, mode) => {
         (t.controls[f.nodeId] ??= {})[f.input] = mode;
         app.persistTemplate();
       },
       onTogglePin: (f) => this.togglePin(f),
+      onAutoprompt: (f, value, apply) => {
+        const positive = f.role === "negative" ? this.model.all.find((x) => x.multiline && x.role !== "negative") : null;
+        openAutoprompt(app, {
+          text: value,
+          negative: f.role === "negative",
+          positive: positive ? t.prompt[positive.nodeId].inputs[positive.input] : "",
+          onApply: apply,
+        });
+      },
     };
   }
 
+  // Pins change in place; the main screen is redrawn when the settings
+  // sheet closes.
   togglePin(f) {
-    const pins = new Set(this.model.pins);
+    const pins = this.model.pins;
     if (pins.has(f.id)) pins.delete(f.id);
     else pins.add(f.id);
     savePins(this.app.template, pins);
-    this.render();
   }
 
   render() {
@@ -106,14 +153,21 @@ export class CreateView {
     }
     const scroll = window.scrollY;
     this.model = buildFields(t, this.app.defs);
-    const ctx = this.ctx;
+    const ctx = this.makeCtx(() => this.render());
     clear(
       this.content,
       this.workflowBar(t),
+      this.stage,
       this.notices(t),
       this.errorPanel(),
       h("section", { class: "card quick" }, this.quickFields(ctx)),
-      this.allParams(ctx)
+      h(
+        "button",
+        { class: "settings-btn", onclick: () => this.openSettings() },
+        icon("layers"),
+        h("span", null, "Weitere Einstellungen", h("small", null, "Alle Werte des Workflows · mit ☆ auf den Hauptbildschirm holen")),
+        icon("chevron")
+      )
     );
     window.scrollTo(0, scroll);
     this.updateRun();
@@ -167,22 +221,23 @@ export class CreateView {
 
   errorPanel() {
     if (!this.errorList.length) return null;
+    const hidden = [...this.errors.keys()].some((id) => !this.model?.quick.some((f) => f.id === id));
     return h(
       "div",
       { class: "notice error" },
       h("div", { class: "notice-head" }, h("strong", null, "Workflow wurde nicht gestartet"), h("button", { class: "icon-btn", "aria-label": "Ausblenden", onclick: () => this.clearErrors(true) }, icon("close"))),
-      h("ul", null, this.errorList.map((e) => h("li", null, e)))
+      h("ul", null, this.errorList.map((e) => h("li", null, e))),
+      hidden ? h("button", { class: "btn small", onclick: () => this.openSettings() }, "In den Einstellungen zeigen") : null
     );
   }
 
   quickFields(ctx) {
     const { quick } = this.model;
     const prompt = this.app.template.prompt;
-    const out = [h("h3", { class: "section-title" }, "Schnellzugriff")];
     if (!quick.length) {
-      out.push(h("p", { class: "muted" }, "Tippe unten bei „Alle Parameter“ auf den Stern, um Felder hierher zu holen."));
-      return out;
+      return h("p", { class: "muted" }, "Tippe unten auf „Weitere Einstellungen“ und markiere mit ☆, was hier erscheinen soll.");
     }
+    const out = [];
     const used = new Set();
     for (const f of quick) {
       if (used.has(f.id)) continue;
@@ -203,63 +258,31 @@ export class CreateView {
     return out;
   }
 
-  allParams(ctx) {
-    const { groups } = this.model;
-    const prompt = this.app.template.prompt;
-    const body = h(
-      "div",
-      { class: "groups" },
-      groups.map((g) =>
-        h(
-          "details",
-          { class: "group", open: groups.length <= 2 || g.fields.some((f) => this.errors.has(f.id)) },
+  // Every value of the workflow, grouped as on the PC; the star decides what
+  // shows on the main screen.
+  openSettings() {
+    const t = this.app.template;
+    if (!t) return;
+    const body = h("div", { class: "groups" });
+    const draw = () => {
+      this.model = buildFields(t, this.app.defs);
+      const ctx = this.makeCtx(draw);
+      const { groups } = this.model;
+      clear(
+        body,
+        h("p", { class: "muted small" }, "Mit ☆ markierte Werte erscheinen auf dem Hauptbildschirm."),
+        groups.map((g) =>
           h(
-            "summary",
-            null,
-            h("span", { class: "group-title" }, g.title),
-            g.title !== g.classType ? h("span", { class: "group-class" }, g.classType) : null,
-            h("span", { class: "group-count" }, String(g.fields.length))
-          ),
-          h(
-            "div",
-            { class: "group-body" },
-            // Pinned fields are edited up in the quick section; a second live
-            // copy here would go stale.
-            g.fields.map((f) =>
-              this.model.pins.has(f.id)
-                ? h(
-                    "div",
-                    { class: "field pinned-ref" },
-                    h(
-                      "div",
-                      { class: "field-head" },
-                      h("span", { class: "field-label" }, f.label, h("span", { class: "field-sub" }, "im Schnellzugriff")),
-                      h("button", { class: "pin-btn on", "aria-label": "Aus Schnellzugriff entfernen", onclick: () => this.togglePin(f) }, icon("star"))
-                    )
-                  )
-                : renderField(f, prompt[f.nodeId].inputs[f.input], ctx)
-            )
+            "details",
+            { class: "group", open: groups.length <= 3 || g.fields.some((f) => this.errors.has(f.id) || this.model.pins.has(f.id)) },
+            h("summary", null, h("span", { class: "group-title" }, g.title), h("span", { class: "group-count" }, String(g.fields.length))),
+            h("div", { class: "group-body" }, g.fields.map((f) => renderField(f, t.prompt[f.nodeId].inputs[f.input], ctx)))
           )
         )
-      )
-    );
-    const toggle = h(
-      "button",
-      {
-        class: "section-toggle",
-        "aria-expanded": this.showAll ? "true" : "false",
-        onclick: () => {
-          this.showAll = !this.showAll;
-          toggle.setAttribute("aria-expanded", this.showAll ? "true" : "false");
-          body.hidden = !this.showAll;
-        },
-      },
-      h("span", null, "Alle Parameter"),
-      h("span", { class: "muted small" }, `${groups.length} Nodes`),
-      icon("down")
-    );
-    body.hidden = !this.showAll;
-    return h("section", { class: "card" }, toggle, body);
+      );
+    };
+    openSheet({ title: "Einstellungen", tall: true, content: body, onClose: () => this.render() });
+    draw();
   }
 
   // --- errors from POST /prompt ------------------------------------------------
@@ -289,19 +312,165 @@ export class CreateView {
     } else {
       this.errorList.push(e.message || "Unbekannter Fehler");
     }
-    this.showAll = this.showAll || [...this.errors.keys()].some((id) => !this.model?.quick.some((f) => f.id === id));
     this.render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // --- run card ------------------------------------------------------------------
+  // --- stage & run card ------------------------------------------------------------
 
   updateRun() {
+    this.updateStage();
+    this.updateRunCard();
+  }
+
+  statusText(job) {
+    const node = job.node && job.prompt?.[job.node];
+    if (job.status === "running" && node) return node._meta?.title || node.class_type;
+    if (job.status === "done") {
+      const n = mediaFiles(job).length;
+      return `Fertig${job.startedAt && job.endedAt ? ` in ${duration(job.endedAt - job.startedAt)}` : ""}${n > 1 ? ` · ${n} Dateien` : ""}`;
+    }
+    if (job.status === "error") return `Fehler: ${job.error?.exception_message?.split("\n")[0] ?? "siehe PC"}`;
+    return STATUS_TEXT[job.status] ?? job.status;
+  }
+
+  cancelJob(job) {
+    return async () => {
+      try {
+        if (job.status === "running") await this.app.api.interrupt(job.id);
+        else await this.app.api.deleteFromQueue([job.id]);
+        if (job.status === "pending") this.app.finishJob(job.id, "cancelled");
+      } catch (e) {
+        toast(e.message, { error: true });
+      }
+    };
+  }
+
+  updateStage() {
+    const t = this.app.template;
+    // Only runs of the workflow that is open right now belong on the stage.
+    let job = this.app.displayJob();
+    if (job && t && job.templateKey && job.templateKey !== t.key) job = null;
+    const stage = this.stage;
+    let mode = null;
+    if (!t) mode = null;
+    else if (job && (job.status === "running" || job.status === "pending")) mode = "live";
+    else if (job && job.status === "done" && mediaFiles(job).length) mode = "result";
+    else if (job && job.status === "error") mode = "error";
+    else if (loadLastResult(t.key)) mode = "last";
+    stage.hidden = !mode;
+    if (!mode) {
+      this.stageKey = null;
+      return;
+    }
+    const key = `${mode}:${job?.id ?? ""}:${t.key}`;
+    if (mode === "live") {
+      if (this.stageKey !== key) {
+        this.stageKey = key;
+        this.stageRefs = {
+          img: h("img", { class: "stage-img", alt: "Live-Vorschau", hidden: true }),
+          wait: h("div", { class: "stage-wait" }, h("div", { class: "spinner" })),
+          text: h("span", { class: "stage-status" }),
+          step: h("span", { class: "run-step" }),
+          bar: h("div", { class: "bar" }),
+          progress: null,
+        };
+        const r = this.stageRefs;
+        r.progress = h("div", { class: "progress" }, r.bar);
+        clear(
+          stage,
+          h("div", { class: "stage-media" }, r.img, r.wait),
+          h(
+            "div",
+            { class: "stage-foot" },
+            h("div", { class: "stage-line" }, r.text, r.step, h("button", { class: "icon-btn", "aria-label": "Abbrechen", onclick: this.cancelJob(job) }, icon("stop"))),
+            r.progress
+          )
+        );
+      }
+      const r = this.stageRefs;
+      if (job.previewUrl && r.img.src !== job.previewUrl) {
+        r.img.src = job.previewUrl;
+        r.img.hidden = false;
+        r.wait.hidden = true;
+      }
+      const pct = job.max ? Math.round((job.value / job.max) * 100) : null;
+      r.text.textContent = this.statusText(job);
+      r.step.textContent = job.status === "running" && job.max ? `${job.value}/${job.max}` : "";
+      r.progress.className = `progress${job.status === "running" && pct == null ? " indeterminate" : ""}${job.status === "pending" ? " idle" : ""}`;
+      r.bar.style.width = `${pct ?? 0}%`;
+      return;
+    }
+    if (this.stageKey === key) return;
+    this.stageKey = key;
+
+    if (mode === "error") {
+      clear(
+        stage,
+        h(
+          "div",
+          { class: "stage-error" },
+          icon("info", "big"),
+          h("p", null, this.statusText(job)),
+          h("button", { class: "btn small", onclick: () => this.openRun(job) }, "Details")
+        )
+      );
+      return;
+    }
+
+    let files;
+    let caption;
+    let jobId;
+    if (mode === "result") {
+      files = mediaFiles(job);
+      caption = this.statusText(job);
+      jobId = job.id;
+      saveLastResult(t.key, { files: files.slice(0, 12), jobId, at: Date.now() });
+    } else {
+      const last = loadLastResult(t.key);
+      files = last.files;
+      jobId = last.jobId;
+      caption = `Letztes Ergebnis · ${timeAgo(last.at)}`;
+    }
+    const api = this.app.api;
+    let current = 0;
+    const media = h("div", { class: "stage-media", role: "button", "aria-label": "Groß ansehen" });
+    const showFile = (i) => {
+      current = i;
+      const f = files[i];
+      clear(
+        media,
+        fileKind(f) === "video"
+          ? h("video", { class: "stage-img", src: api.viewUrl(f), autoplay: true, muted: true, loop: true, playsinline: true })
+          : h("img", { class: "stage-img", src: api.viewUrl(f), alt: "Ergebnis" })
+      );
+      for (const [j, el] of [...thumbs.children].entries()) el.classList.toggle("on", j === i);
+    };
+    media.addEventListener("click", () => this.app.views.gallery.openFiles(files, current, { jobId }));
+    const thumbs = h(
+      "div",
+      { class: "stage-thumbs" },
+      files.length > 1
+        ? files.map((f, i) =>
+            h(
+              "button",
+              { class: "stage-thumb", onclick: () => showFile(i) },
+              fileKind(f) === "video" ? icon("play") : h("img", { src: api.viewUrl(f, { preview: "webp;50" }), alt: "", loading: "lazy" })
+            )
+          )
+        : null
+    );
+    clear(stage, media, files.length > 1 ? thumbs : null, h("div", { class: "stage-foot" }, h("div", { class: `stage-line${mode === "result" ? " done" : ""}` }, h("span", { class: "stage-status" }, caption))));
+    showFile(0);
+  }
+
+  updateRunCard() {
     const job = this.app.displayJob();
-    this.runCard.hidden = !job;
-    if (!job) return;
-    const results = job.outputs.filter((o) => fileKind(o) !== "other");
-    const image = results.find((o) => o.type === "output") ?? results[0];
+    const stageShown = !this.stage.hidden && this.stageVisible;
+    this.runCard.hidden = !job || stageShown;
+    if (this.runCard.hidden) return;
+    const results = mediaFiles(job);
+    const image = results[0];
     let thumb;
     if (job.status === "done" && image) {
       thumb = fileKind(image) === "image" ? h("img", { src: this.app.api.viewUrl(image, { preview: "webp;70" }), alt: "" }) : h("div", { class: "thumb-icon" }, icon("play"));
@@ -310,21 +479,15 @@ export class CreateView {
     } else {
       thumb = h("div", { class: `thumb-icon${job.status === "running" ? " spin" : ""}` }, icon(job.status === "error" ? "info" : "bolt"));
     }
-    const node = job.node && job.prompt?.[job.node];
-    let text = STATUS_TEXT[job.status] ?? job.status;
-    if (job.status === "running" && node) text = node._meta?.title || node.class_type;
-    if (job.status === "done") text = `Fertig${job.startedAt && job.endedAt ? ` in ${duration(job.endedAt - job.startedAt)}` : ""}${results.length > 1 ? ` · ${results.length} Dateien` : ""}`;
-    if (job.status === "error") text = `Fehler: ${job.error?.exception_message?.split("\n")[0] ?? "siehe PC"}`;
     const pct = job.max ? Math.round((job.value / job.max) * 100) : null;
     const step = job.status === "running" && job.max ? `${job.value}/${job.max}` : "";
-
     clear(
       this.runCard,
       h("button", { class: "run-thumb", "aria-label": "Ergebnis ansehen", onclick: () => this.openRun(job) }, thumb),
       h(
         "div",
         { class: "run-info", onclick: () => this.openRun(job) },
-        h("div", { class: "run-line" }, h("span", { class: `run-status ${job.status}` }, text), h("span", { class: "run-step" }, step)),
+        h("div", { class: "run-line" }, h("span", { class: `run-status ${job.status}` }, this.statusText(job)), h("span", { class: "run-step" }, step)),
         h(
           "div",
           { class: `progress${job.status === "running" && pct == null ? " indeterminate" : ""}${job.status === "pending" ? " idle" : ""}` },
@@ -332,29 +495,13 @@ export class CreateView {
         )
       ),
       job.status === "running" || job.status === "pending"
-        ? h(
-            "button",
-            {
-              class: "icon-btn",
-              "aria-label": "Abbrechen",
-              onclick: async () => {
-                try {
-                  if (job.status === "running") await this.app.api.interrupt(job.id);
-                  else await this.app.api.deleteFromQueue([job.id]);
-                  if (job.status === "pending") this.app.finishJob(job.id, "cancelled");
-                } catch (e) {
-                  toast(e.message, { error: true });
-                }
-              },
-            },
-            icon("stop")
-          )
+        ? h("button", { class: "icon-btn", "aria-label": "Abbrechen", onclick: this.cancelJob(job) }, icon("stop"))
         : h("button", { class: "icon-btn", "aria-label": "Ausblenden", onclick: () => ((this.app.lastJobId = null), this.updateRun()) }, icon("close"))
     );
   }
 
   openRun(job) {
-    const files = job.outputs.filter((o) => fileKind(o) !== "other");
+    const files = mediaFiles(job);
     if (job.status === "done" && files.length) {
       this.app.views.gallery.openFiles(files, 0, { jobId: job.id });
     } else if (job.previewUrl) {
@@ -549,7 +696,7 @@ export class CreateView {
         { class: "menu" },
         h("button", { class: "menu-item", disabled: !canSave, onclick: () => (sheet.close(), this.saveAs()) }, icon("save"), h("span", null, "In ComfyUI speichern…", !canSave ? h("small", null, t.ui ? "Struktur geändert – nicht möglich" : "Nur für Workflows mit Workflow-Daten") : null)),
         h("button", { class: "menu-item", disabled: t.source?.kind !== "workflow", onclick: () => (sheet.close(), this.reloadFromSource()) }, icon("reuse"), h("span", null, "Auf gespeicherten Stand zurücksetzen")),
-        h("button", { class: "menu-item", onclick: () => (sheet.close(), this.resetPins()) }, icon("star"), h("span", null, "Schnellzugriff zurücksetzen")),
+        h("button", { class: "menu-item", onclick: () => (sheet.close(), this.resetPins()) }, icon("star"), h("span", null, "Hauptbildschirm zurücksetzen")),
         h("button", { class: "menu-item", onclick: async () => (sheet.close(), await this.app.reloadDefs(), toast("Modelllisten neu geladen")) }, icon("refresh"), h("span", null, "Modelllisten neu laden")),
         h("button", { class: "menu-item", onclick: () => (sheet.close(), this.openPicker()) }, icon("folder"), h("span", null, "Anderen Workflow öffnen"))
       ),

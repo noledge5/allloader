@@ -12,13 +12,23 @@ Vollbild wie eine normale App.
 
 ## Was sie kann
 
+- **Aufgeräumt:** Keine Nodes und keine Kabel. Oben ein großes Fenster mit
+  Live-Vorschau beim Generieren und danach dem Ergebnis, darunter der Prompt
+  und die paar Werte, die du wirklich änderst.
+- **Autoprompter:** Unter dem Prompt-Feld macht ✨ *Autoprompt* aus einer
+  kurzen Idee (auch auf Deutsch) einen ausführlichen englischen Prompt,
+  verbessert ihn oder schlägt eine Variation vor. Auf Wunsch mit Stil
+  (Foto, Film, Anime …) und Zusatzwunsch. Beim Negativ-Prompt erzeugt er
+  eine passende Negativliste. Läuft über OpenRouter, OpenAI oder einen
+  lokalen Server wie LM Studio oder Ollama.
 - **Workflows öffnen** – deine in ComfyUI gespeicherten Workflows, einen
   früheren Lauf aus dem Verlauf oder eine Datei (`.json` oder ein mit ComfyUI
   erzeugtes PNG).
-- **Schnellzugriff** – Prompt, Negativ-Prompt, Seed, Schritte, CFG,
+- **Hauptbildschirm** – Prompt, Negativ-Prompt, Seed, Schritte, CFG,
   Sampler, Größe, Checkpoint/LoRA und Eingabebilder werden automatisch
-  erkannt. Über den Stern bei „Alle Parameter“ holst du dir jedes andere
-  Feld dazu (wird pro Workflow gemerkt). Bei Workflows mit Subgraphs werden
+  erkannt. Unter **Weitere Einstellungen** stehen alle Werte des Workflows.
+  Mit dem ☆ holst du jeden davon auf den Hauptbildschirm oder nimmst ihn
+  wieder weg (wird pro Workflow gemerkt). Bei Workflows mit Subgraphs werden
   die Eingänge übernommen, die der Autor am Subgraph freigegeben hat.
 - **Große Bedienelemente** – −/+ und Schieberegler für Zahlen, Würfel und
   Modus (Zufall / Fest / +1 / −1) für Seeds, Seitenverhältnis-Buttons für die
@@ -72,12 +82,42 @@ Tipp: Damit sich die IP-Adresse des PCs nicht ändert, im Router (z.B.
 FRITZ!Box: *Heimnetz → Netzwerk → Gerät bearbeiten*) „Diesem Gerät immer die
 gleiche IPv4-Adresse zuweisen“ aktivieren.
 
+## Autoprompter einrichten
+
+Im Tab **System** → **Autoprompter**:
+
+1. **Anbieter** wählen:
+   - *OpenRouter*: ein Key für viele Modelle (OpenAI, Anthropic, Google,
+     Mistral, Llama …). Den Key gibt es unter openrouter.ai → *Keys*.
+   - *OpenAI*: Key unter platform.openai.com → *API keys*.
+   - *Eigene Adresse*: ein lokaler Server mit OpenAI-kompatibler
+     Schnittstelle, z.B. LM Studio `http://127.0.0.1:1234/v1` oder Ollama
+     `http://127.0.0.1:11434/v1`. Meist ohne Key. Die Adresse ist aus Sicht
+     des PCs gemeint, auf dem ComfyUI läuft.
+2. **API-Key** einfügen und **Speichern**.
+3. **Modell** antippen und aus der Liste des Anbieters wählen (mit Suche).
+   Für Prompts reicht ein kleines, schnelles und günstiges Modell völlig.
+4. **Prompt-Stil**: *Natürliche Sprache* für Flux, SDXL, Qwen, Wan & Co.,
+   *Tags* für SD 1.5, Pony oder Illustrious.
+5. Optional eine **eigene Anweisung**, die immer gilt, dann **Testen**.
+
+Der Key wird auf dem PC gespeichert, in `ComfyUI\user\__comfyui_mobile\settings.json`.
+ComfyUI liefert diesen Ordner nicht über das Netzwerk aus, und die App zeigt
+ihn nie wieder an. Beim Speichern geht er einmal unverschlüsselt durchs
+Heimnetz. Wer das nicht möchte, setzt am PC stattdessen die
+Umgebungsvariable `OPENROUTER_API_KEY` bzw. `OPENAI_API_KEY`.
+
 ## Benutzung
 
-- **Erstellen:** Oben den Workflow antippen, um einen anderen zu öffnen. Im
-  Schnellzugriff die Werte ändern, unten auf **Generieren** tippen. Die Karte
-  über dem Button zeigt Fortschritt und Vorschau; ist der Lauf fertig, öffnet
-  ein Tipp darauf das Ergebnis.
+- **Erstellen:** Oben den Workflow antippen, um einen anderen zu öffnen.
+  Prompt und Werte ändern, unten auf **Generieren** tippen. Das große Fenster
+  zeigt Fortschritt und Live-Vorschau und danach das Ergebnis. Ein Tipp
+  darauf öffnet es im Vollbild. Bist du weiter unten, zeigt eine kleine
+  Karte über dem Button den Stand. Beim nächsten Öffnen zeigt das Fenster
+  das letzte Ergebnis dieses Workflows.
+- **Einrichten pro Workflow:** Einmal **Weitere Einstellungen** öffnen und
+  mit ☆ markieren, was du auf dem Handy ändern willst. Den Rest lässt du,
+  wie er am PC eingestellt ist.
 - **Komplexe Workflows** (viele Custom Nodes, spezielle Widgets): einmal am PC
   ausführen und dann auf dem Handy über *Workflow öffnen → Verlauf* oder in
   der Galerie mit **Übernehmen** laden. Das übernimmt exakt die Einstellungen
@@ -85,7 +125,7 @@ gleiche IPv4-Adresse zuweisen“ aktivieren.
 - **Seed-Modus:** *Zufall* erzeugt vor jedem Lauf einen neuen Seed und zeigt
   ihn an, *Fest* behält ihn, *+1/−1* zählt weiter.
 - **Menü (⋯):** Als Workflow in ComfyUI speichern, auf den gespeicherten
-  Stand zurücksetzen, Schnellzugriff zurücksetzen, Modelllisten neu laden
+  Stand zurücksetzen, Hauptbildschirm zurücksetzen, Modelllisten neu laden
   (nach dem Herunterladen neuer Modelle).
 - **Live-Vorschau** lässt sich unter *System* einstellen („Automatisch“
   nutzt TAESD, wenn vorhanden, sonst eine schnelle Näherung).
@@ -111,6 +151,9 @@ Tailscale oder WireGuard (FRITZ!Box) und öffnest dann die VPN-Adresse des PCs.
   ComfyUI-Vorlagen: 507 davon ergeben exakt dasselbe wie das echte Frontend.
   Die übrigen weichen nur bei Spezial-Widgets ab (3D-Vorschau,
   Bildvergleich u.ä.).
+- Der Autoprompter läuft über dieselbe Erweiterung: Die App schickt nur Text
+  und Modus an `/mobile/api/autoprompt/…`, der PC ruft das Sprachmodell auf
+  (OpenAI-kompatibles `chat/completions`).
 - Die App merkt sich den zuletzt geöffneten Workflow samt Änderungen im
   Browser. Nach einem Neustart geht es genau dort weiter.
 - Tests: `npm test` (bzw. `node --test tests/*.test.mjs`) in diesem Ordner.
