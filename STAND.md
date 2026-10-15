@@ -15,7 +15,7 @@ dazu Videos und Audio über yt-dlp. Bedienung im Browser, ohne Terminal.
 - keine bekannt
 
 ## Entscheidungen
-- Einzige feste Abhängigkeit ist Flask; `start.bat` installiert sie beim ersten Start (README).
+- Abhängigkeiten stehen in `requirements.txt` (Flask, yt-dlp, imageio-ffmpeg); `start.bat` installiert sie beim Start.
 
 ## Nächste Schritte
 1. Bei der nächsten Änderung Tests für `downloader.py` anlegen (Fortsetzen, Neustart).
