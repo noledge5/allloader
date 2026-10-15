@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{name}}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --hintergrund: #ffffff;
+    --flaeche: #f3f4f6;
+    --text: #1f2933;
+    --gedaempft: #52606d;
+    --rand: #cbd2d9;
+    --akzent: #1f6feb;
+    --akzent-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --hintergrund: #14181d;
+      --flaeche: #1e242b;
+      --text: #e4e7eb;
+      --gedaempft: #9aa5b1;
+      --rand: #3e4c59;
+      --akzent: #58a6ff;
+      --akzent-text: #0b1118;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--hintergrund);
+    color: var(--text);
+    font: 16px/1.5 system-ui, sans-serif;
+  }
+  main { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  .zweck { color: var(--gedaempft); margin: 0 0 1.5rem; }
+  label { display: block; font-weight: 600; margin: 1rem 0 .25rem; }
+  textarea, pre {
+    width: 100%;
+    min-height: 8rem;
+    margin: 0;
+    padding: .75rem;
+    background: var(--flaeche);
+    color: var(--text);
+    border: 1px solid var(--rand);
+    border-radius: .5rem;
+    font: 14px/1.5 ui-monospace, monospace;
+    white-space: pre-wrap;
+  }
+  button {
+    margin-top: 1rem;
+    padding: .5rem 1.25rem;
+    background: var(--akzent);
+    color: var(--akzent-text);
+    border: 0;
+    border-radius: .5rem;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main id="app">
+  <h1>{{name}}</h1>
+  <p class="zweck">{{zweck_html}}</p>
+  <label for="eingabe">Eingabe</label>
+  <textarea id="eingabe" spellcheck="false"></textarea>
+  <button id="ausfuehren" type="button">Ausführen</button>
+  <label for="ausgabe">Ergebnis</label>
+  <pre id="ausgabe" aria-live="polite"></pre>
+</main>
+<script>
+// Gerüst von `neues-werkzeug`: die Logik steht in `verarbeite` (reine Funktion, leicht zu testen).
+function verarbeite(text) {
+  return text;
+}
+
+document.getElementById('ausfuehren').addEventListener('click', () => {
+  document.getElementById('ausgabe').textContent = verarbeite(document.getElementById('eingabe').value);
+});
+</script>
+</body>
+</html>
