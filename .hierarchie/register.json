@@ -1,0 +1,683 @@
+{
+  "version": 1,
+  "werkzeuge": [
+    {
+      "name": "uts",
+      "cli": "uts",
+      "modul": "werkzeuge/uts.mjs",
+      "zweck": "Unit-Test-Suite ausführen (--kurz, --json, --geaendert, --zu <datei>, --status)",
+      "eingabe": "Projektwurzel = aktuelles Verzeichnis; Optionen --kurz, --json, --geaendert, --zu <datei>, --status, Dateifilter; optional \"uts\" in package.json",
+      "ausgabe": "grün: eine Zeile; rot: nur die fehlgeschlagenen Tests; Ergebnis in .uts/letzter-lauf.json; Exit 0 grün, 1 rot, 2 Bedienfehler oder keine Tests",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs uts --kurz",
+      "dateien": [
+        "werkzeuge/uts.mjs"
+      ],
+      "tests": [
+        "tests/uts.test.mjs"
+      ],
+      "grenzen": [
+        "Findet nur Testdateien nach Muster (*.test.mjs, *.test.js, *.test.cjs) und prüft nur, was dort geschrieben steht",
+        "--status erkennt jede Dateiänderung als veraltet, auch ohne Bezug zu den Tests",
+        "Lokal nur unter Linux ausgeführt; macOS und Windows sind nur in der CI-Matrix (.github/workflows/uts.yml) vorgesehen, ein Lauf dort ist nicht belegt"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "einrichten",
+      "cli": "einrichten",
+      "modul": "werkzeuge/einrichten.mjs",
+      "zweck": "Werkzeuge, Skills, Agents und Einstellungen in ein Projekt kopieren (ohne --uebernehmen nur Trockenlauf)",
+      "eingabe": "Projektordner; Optionen --uebernehmen, --modell <alias>",
+      "ausgabe": "Liste der Aktionen (+ neu, ~ ändern, = unverändert, ! übersprungen); Exit 0 ok, 1 Fehler (nichts geschrieben), 2 Bedienfehler",
+      "befehl": "node werkzeuge/hierarchie.mjs einrichten <projektordner> [--uebernehmen]",
+      "dateien": [
+        "werkzeuge/einrichten.mjs",
+        "werkzeuge/lib/bloecke.mjs",
+        "werkzeuge/lib/dateien.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/hash.mjs",
+        "werkzeuge/lib/json.mjs",
+        "werkzeuge/lib/settings.mjs",
+        "vorlagen/CLAUDE-block.md",
+        "vorlagen/pre-push-block.sh",
+        "vorlagen/settings-projekt.json",
+        "vorlagen/uts.yml",
+        "vorlagen/plan.md",
+        "vorlagen/STAND.md",
+        "vorlagen/stand.test.mjs.vorlage"
+      ],
+      "tests": [
+        "tests/einrichten.test.mjs"
+      ],
+      "grenzen": [
+        "Läuft nur aus dem hierarchie-Repo (braucht die Vorlagen), nicht aus einer Projektkopie; das Repo selbst ist kein Ziel",
+        "Überschreibt nie lokal geänderte oder fremde Dateien (sie werden mit ! gemeldet und müssen von Hand abgeglichen werden)",
+        "Git-Hook nur für sh/bash-Hooks; andere Interpreter und Windows/PowerShell sind nicht getestet",
+        "STAND.md legt es nur an, wenn sie fehlt (nie überschrieben); die Vorlage enthält Platzhalter, deshalb läuft automatisierung/stand.test.mjs bis dahin als übersprungen (Platzhalter) und `stand pruefen` meldet Exit 1"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "register",
+      "cli": "register",
+      "modul": "werkzeuge/register.mjs",
+      "zweck": "Register der Werkzeuge anzeigen, prüfen, Teststatus aktualisieren, Kandidaten führen",
+      "eingabe": "Unterbefehl pruefen, aktualisieren, kandidat <name> --ablauf, entscheide <name> bauen|verworfen --begruendung; ohne Unterbefehl die Liste",
+      "ausgabe": "Liste bzw. Befunde je Zeile; Exit 0 ok, 1 Befund, 2 Bedienfehler",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs register",
+      "dateien": [
+        "werkzeuge/register.mjs",
+        "werkzeuge/lib/register.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "register.json"
+      ],
+      "tests": [
+        "tests/register.test.mjs",
+        "tests/konsistenz.test.mjs"
+      ],
+      "grenzen": [
+        "Prüft Form und Verweise des Registers, nicht ob Angaben wie zweck oder grenzen inhaltlich stimmen",
+        "--status der UTS dient als Aktualitätsprüfung; nach jeder Dateiänderung (auch an register.json) muss die UTS neu laufen, bevor aktualisieren wieder greift",
+        "Kandidaten und Häufigkeiten sind nur so belegt wie ihre Quelle; ohne Beleg stehen sie als vermutet im Register"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "neues-werkzeug",
+      "cli": "neues-werkzeug",
+      "modul": "werkzeuge/neues-werkzeug.mjs",
+      "zweck": "Gerüst für ein neues Werkzeug anlegen (Skript oder --app), mit Test und Registereintrag",
+      "eingabe": "Name [a-z0-9-]+; Optionen --app, --zweck \"…\"",
+      "ausgabe": "Liste der angelegten Dateien; Exit 0 ok, 1 Fehler (nichts geschrieben), 2 Bedienfehler (z. B. Name oder Datei schon vorhanden)",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs neues-werkzeug <name> [--app] [--zweck \"…\"]",
+      "dateien": [
+        "werkzeuge/neues-werkzeug.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "vorlagen/werkzeug.mjs.vorlage",
+        "vorlagen/werkzeug.test.mjs.vorlage",
+        "vorlagen/app.html",
+        "vorlagen/app.test.mjs.vorlage"
+      ],
+      "tests": [
+        "tests/neues-werkzeug.test.mjs"
+      ],
+      "grenzen": [
+        "Legt nur das Gerüst an: Verhalten, echte Tests und die Angaben im Registereintrag (eingabe, ausgabe, grenzen) müssen danach ergänzt werden",
+        "Ein Werkzeug ist nur mit --app eine App; Skript und App unter demselben Namen gleichzeitig gibt es nicht",
+        "Die App-Tests prüfen Struktur (Skript parsebar, Pflichtelemente, keine externen URLs), nicht das Aussehen im Browser"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "plan",
+      "cli": "plan",
+      "modul": "werkzeuge/plan.mjs",
+      "zweck": "Pläne mit Arbeitspaketen, Status und Delegationszähler führen (plan.md, status.json, plan.html)",
+      "eingabe": "Unterbefehl neu, paket, setze, delegation, zeige, naechstes oder html; Planname [a-z0-9-]+, Paket-ID wie WP1; Pläne liegen in plaene/<name>/",
+      "ausgabe": "eine Zeile je Paket bzw. Bestätigung; schreibt plaene/<name>/plan.md, status.json und plan.html; Exit 0 ok, 1 Befund (ungültiger Übergang, Limit erreicht, defekte status.json), 2 Bedienfehler",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs plan zeige",
+      "dateien": [
+        "werkzeuge/plan.mjs",
+        "werkzeuge/lib/markdown.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "vorlagen/plan.md"
+      ],
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ],
+      "tests": [
+        "tests/plan.test.mjs"
+      ],
+      "teststatus": "gruen",
+      "grenzen": [
+        "Verwaltet Status und Zähler, setzt aber nichts um: Auswahl der Stufe und Inhalt von plan.md bleiben Aufgabe der Leitung",
+        "Der Markdown-Umsetzer für plan.html ist klein: keine Bilder, kein rohes HTML (wird als Text angezeigt), Listen nur einfach verschachtelt getestet",
+        "Das Limit der Delegationen gilt nur, wenn jede Delegation über plan delegation gezählt wird",
+        "plan.html nur im Quelltext auf externe Ressourcen geprüft, nicht im Browser angesehen"
+      ],
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null
+    },
+    {
+      "name": "hook-nach-aenderung",
+      "modul": "werkzeuge/hook-nach-aenderung.mjs",
+      "zweck": "PostToolUse-Hook: führt nach jeder Dateiänderung durch Claude die zugehörigen UTS-Tests aus",
+      "eingabe": "JSON auf stdin (tool_input.file_path, cwd) vom Hook-Mechanismus von Claude Code; kein Aufruf von Hand vorgesehen",
+      "ausgabe": "still bei grün oder ohne passenden Test; bei einem Testfehler Exit 2 und die Fehlerzeilen auf stderr",
+      "befehl": "node \"$CLAUDE_PROJECT_DIR/.hierarchie/werkzeuge/hook-nach-aenderung.mjs\" (Eintrag in .claude/settings.json, von einrichten gesetzt)",
+      "dateien": [
+        "werkzeuge/hook-nach-aenderung.mjs",
+        "werkzeuge/lib/pfade.mjs",
+        "werkzeuge/lib/modul.mjs"
+      ],
+      "tests": [
+        "tests/hooks.test.mjs"
+      ],
+      "grenzen": [
+        "Reagiert nur auf Edit, Write und MultiEdit, nicht auf Dateiänderungen durch Bash",
+        "Bricht nach 50 s still ab (Exit 0), damit der Hook die Arbeit nicht blockiert",
+        "Windows und PowerShell sind nicht getestet; Windows-Pfade werden nur im Unit-Test nachgestellt",
+        "Hooks laufen nur, wenn die Projekteinstellungen sie enthalten (von einrichten gesetzt)"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "hook-sitzungsstart",
+      "modul": "werkzeuge/hook-sitzungsstart.mjs",
+      "zweck": "SessionStart-Hook: richtet in Cloud-Sitzungen die Abhängigkeiten ein (npm ci) und gibt in jeder Sitzung den Kurzstand (uebergabe) aus",
+      "eingabe": "Umgebungsvariablen CLAUDE_CODE_REMOTE=true (nur für npm ci), CLAUDE_PROJECT_DIR; package-lock.json vorhanden und node_modules fehlend; kein Aufruf von Hand vorgesehen",
+      "ausgabe": "Cloud: eine Zeile Ergebnis von npm ci; immer danach die Ausgabe von uebergabe (höchstens 30 Zeilen, bei SessionStart im Kontext der Sitzung); scheitert uebergabe, eine Hinweiszeile; Exit immer 0",
+      "befehl": "node \"$CLAUDE_PROJECT_DIR/.hierarchie/werkzeuge/hook-sitzungsstart.mjs\" (Eintrag in .claude/settings.json, von einrichten gesetzt)",
+      "dateien": [
+        "werkzeuge/hook-sitzungsstart.mjs",
+        "werkzeuge/lib/modul.mjs",
+        "werkzeuge/uebergabe.mjs",
+        "werkzeuge/stand.mjs",
+        "werkzeuge/lib/register.mjs",
+        "werkzeuge/lib/sammeln.mjs"
+      ],
+      "tests": [
+        "tests/hooks.test.mjs"
+      ],
+      "grenzen": [
+        "Läuft nur in Cloud-Sitzungen und nur mit package-lock.json; ohne Netz zu npm scheitert npm ci (nur eine Hinweiszeile)",
+        "Windows und PowerShell sind nicht getestet (npm.cmd-Aufruf nur per Unit-Test nachgestellt)",
+        "Zeitlimit 280 s",
+        "Die Übergabe-Ausgabe kostet in jeder Sitzung Kontext (bis zu 30 Zeilen) und ist eine Momentaufnahme; was in keinem Commit, Plan oder STAND.md steht, fehlt"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "aenderungsliste",
+      "cli": "aenderungsliste",
+      "modul": "werkzeuge/aenderungsliste.mjs",
+      "zweck": "Änderungsliste aus den Commits: nach Präfix (feat, fix, docs, test, refactor, chore, sonstige) gruppiert als Markdown",
+      "eingabe": "optional <von>..<bis> (Tags, Branches oder Hashes); ohne Angabe seit dem letzten Tag, gibt es keinen die letzten 20 Commits",
+      "ausgabe": "Markdown auf stdout, eine Zeile je Commit mit fettem Bereich und Kurz-Hash; schreibt nichts; Exit 0 ok, 1 git-Fehler, 2 Bedienfehler (kein Git-Repository, ungültiger oder unbekannter Bereich)",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs aenderungsliste [<von>..<bis>]",
+      "dateien": [
+        "werkzeuge/aenderungsliste.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs"
+      ],
+      "tests": [
+        "tests/aenderungsliste.test.mjs"
+      ],
+      "grenzen": [
+        "Gruppiert nur nach dem Präfix der Betreffzeile; ob Commits richtig benannt sind, wird nicht geprüft",
+        "Commits ohne oder mit anderem Präfix (z. B. perf, style) landen unter sonstige, mit vollem Betreff",
+        "Ohne Bereich zählt der nächste Tag, der von HEAD aus erreichbar ist (git describe --tags); ohne Tag die letzten 20 Commits ohne Merges (Merges zählen nicht zu den 20)",
+        "Nur Betreffzeilen werden ausgewertet: keine Autoren, keine PR-Nummern, keine Textkörper der Commits",
+        "Schreibt keine CHANGELOG-Datei; die Übernahme in Release-Notizen ist Handarbeit"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "branches",
+      "cli": "branches",
+      "modul": "werkzeuge/branches.mjs",
+      "zweck": "Lokale und Remote-Branches: gemergt oder nicht, unbewegt seit N Tagen; nur Bericht, löscht nie",
+      "eingabe": "optional --tage N (ganze Zahl ≥ 1, Standard 30)",
+      "ausgabe": "eine Zeile je Branch mit Merkmalen, Zusammenfassung am Ende; Exit 0 ok, 1 git-Fehler, 2 Bedienfehler (--tage ungültig, kein Git-Repository)",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs branches [--tage N]",
+      "dateien": [
+        "werkzeuge/branches.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs"
+      ],
+      "tests": [
+        "tests/branches.test.mjs"
+      ],
+      "grenzen": [
+        "gemergt heißt: die Spitze des Branches ist Vorfahr von origin/HEAD; bei Squash- oder Rebase-Merges erscheint ein Branch deshalb als nicht gemergt",
+        "Ohne origin/HEAD gilt der aktuelle Branch als Vergleich; dann ist er selbst immer gemergt",
+        "unbewegt nach dem Datum des letzten Commits auf der Spitze, nicht nach Push, Review oder Kommentaren",
+        "Remote-Branches sind nur so aktuell wie der letzte git fetch; ohne fetch können sie veraltet oder schon gelöscht sein",
+        "Löscht, benennt und pusht nichts; Aufräumen bleibt Handarbeit"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "uebergabe",
+      "cli": "uebergabe",
+      "modul": "werkzeuge/uebergabe.mjs",
+      "zweck": "Kurzstand für eine neue Sitzung: Branch, letzte 5 Commits, uncommittete Dateien, UTS-Status, STAND.md-Zeile, offene Pläne, offene Kandidaten, „Anderswo offen“ aus der Projektübersicht (höchstens 30 Zeilen)",
+      "eingabe": "keine Argumente; liest Git, STAND.md, plaene/, die UTS-Ergebnisdatei und das Register des Projekts",
+      "ausgabe": "höchstens 30 Zeilen Text; Exit 0 (auch ohne Git, Plan oder Register), 2 bei unerwarteten Argumenten",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs uebergabe",
+      "dateien": [
+        "werkzeuge/uebergabe.mjs",
+        "werkzeuge/plan.mjs",
+        "werkzeuge/uts.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs",
+        "werkzeuge/lib/register.mjs",
+        "werkzeuge/stand.mjs",
+        "werkzeuge/lib/sammeln.mjs",
+        "werkzeuge/projekte.mjs"
+      ],
+      "tests": [
+        "tests/uebergabe.test.mjs",
+        "tests/projekte.test.mjs"
+      ],
+      "grenzen": [
+        "Nur Momentaufnahme des Arbeitsstands; was in keinem Commit, Plan oder Register steht, fehlt (z. B. mündlich Besprochenes)",
+        "Der UTS-Status stammt aus der letzten Ergebnisdatei und sagt „veraltet“ nach jeder Dateiänderung, auch ohne Bezug zu den Tests",
+        "Mehr als 5 Commits, 10 uncommittete Dateien oder Planzeilen über das Zeilenlimit hinaus werden gekürzt; Details liefern git, plan zeige und register",
+        "Ohne Git entfallen Branch, Commits und Dateiliste ohne Hinweis; ohne Plan oder Register steht „keine“",
+        "Die Zeile STAND.md sagt nur aktuell, veraltet, ungültig oder fehlt; ob der Inhalt stimmt, prüft niemand"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "stand",
+      "cli": "stand",
+      "modul": "werkzeuge/stand.mjs",
+      "zweck": "Projektgedächtnis: STAND.md prüfen, aus der Vorlage anlegen und als HTML-Seite (stand.html, stand.seite.html) ausgeben",
+      "eingabe": "Projektordner = Wurzel des Projekts (STAND.md dort); Unterbefehle pruefen, neu [--name \"…\"], html; ohne Unterbefehl Kurzanzeige; liest zusätzlich UTS-Ergebnis, plaene/, Register und Git",
+      "ausgabe": "Kurzanzeige bzw. Befunde und Warnungen als Text; html schreibt stand.html und stand.seite.html (nicht versioniert) und nennt beide Pfade; Exit 0 ok (auch bei Veraltet-Warnung), 1 Befund oder STAND.md fehlt, 2 Bedienfehler oder STAND.md schon vorhanden (neu)",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs stand pruefen",
+      "dateien": [
+        "werkzeuge/stand.mjs",
+        "werkzeuge/plan.mjs",
+        "werkzeuge/register.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/json.mjs",
+        "werkzeuge/lib/markdown.mjs",
+        "werkzeuge/lib/modul.mjs",
+        "werkzeuge/lib/register.mjs",
+        "werkzeuge/lib/sammeln.mjs",
+        "werkzeuge/lib/stand-seite.mjs",
+        "vorlagen/STAND.md",
+        "vorlagen/stand.test.mjs.vorlage"
+      ],
+      "tests": [
+        "tests/stand.test.mjs"
+      ],
+      "grenzen": [
+        "Veröffentlichen auf claude.ai übernimmt Claude mit dem Artifact-Werkzeug, nicht das Skript; stand html erzeugt nur die Dateien",
+        "Prüft nur Form (Aufbau, Datum, Länge, Platzhalter), nicht ob der Inhalt stimmt; \"veraltet\" vergleicht nur Tage mit dem letzten Commit ohne STAND.md",
+        "Die Seite zeigt keinen CI-Status (offline nicht abrufbar); die Schrift IBM Plex kommt von Google Fonts, offline greift die Systemschrift",
+        "Optik der Seite (hell/dunkel, schmale Bildschirme) ist per Test nur an den Gestaltungsregeln prüfbar, nicht am Bild; Platzhalter-Erkennung hält jeden <Text> außerhalb von Code für einen Platzhalter, außer kleingeschriebenen HTML-Tags und Autolinks",
+        "Lokal nur unter Linux ausgeführt; macOS und Windows nicht getestet"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20",
+        "Git (für Branch, Commits und die Veraltet-Warnung; ohne Git entfallen sie)"
+      ]
+    },
+    {
+      "name": "doku-verweise",
+      "cli": "doku-verweise",
+      "modul": "werkzeuge/doku-verweise.mjs",
+      "zweck": "Markdown-Verweise auf Dateien, die es nicht gibt: relative Links und Pfade in Inline-Code",
+      "eingabe": "optional Ordner (Standard: ganzes Projekt ohne node_modules, .git, .next, .uts, dist, build, coverage, .hierarchie); --json",
+      "ausgabe": "eine Zeile je Befund `datei:zeile → ziel`; Exit 0 keine Befunde, 1 Befund, 2 Ordner fehlt",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs doku-verweise [ordner…] [--json]",
+      "dateien": [
+        "werkzeuge/doku-verweise.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/dateien.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs"
+      ],
+      "tests": [
+        "tests/doku-verweise.test.mjs"
+      ],
+      "grenzen": [
+        "Prüft nur Markdown-Dateien (.md) und nur, ob das Ziel existiert; ob Inhalt oder Anker stimmen, bleibt ungeprüft",
+        "Gegen Fehlalarm wird im Zweifel nicht geprüft: reine Dateinamen ohne /, Platzhalter (<…>, *, …, $), Pfade mit führendem / oder in .claude und installierte oder erzeugte Ordner; ein kaputter Verweis dieser Art bleibt unentdeckt",
+        "Pfade in Inline-Code, die Beispiele oder Dateien eines anderen Projekts nennen, werden trotzdem gemeldet; Codeblöcke werden übersprungen",
+        "Kurzpfade, die am Ende irgendeines vorhandenen Pfades passen, gelten als gültig, auch wenn sie nicht gemeint sind",
+        "Verweise in HTML-Tags (<a href>, <img>) und andere Dateiformate werden nicht gelesen"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "geheimnis-scan",
+      "cli": "geheimnis-scan",
+      "modul": "werkzeuge/geheimnis-scan.mjs",
+      "zweck": "Mustererkennung nach Geheimnissen in versionierten Dateien (Schlüssel, Token, .env, password=/secret=); meldet nur Datei, Zeile und Art, nie den Wert",
+      "eingabe": "optional --gestaged (nur Index-Inhalt gestagter Dateien), --json; Ausnahmen aus .hierarchie-geheimnis-ausnahmen",
+      "ausgabe": "eine Zeile je Fund `datei:zeile  art`, Zusammenfassung am Ende; Exit 0 keine Funde, 1 Fund, 2 kein Git-Repository",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs geheimnis-scan [--gestaged] [--json]",
+      "dateien": [
+        "werkzeuge/geheimnis-scan.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs"
+      ],
+      "tests": [
+        "tests/geheimnis-scan.test.mjs"
+      ],
+      "grenzen": [
+        "Mustererkennung, kein Ersatz für das Secret-Scanning von GitHub: erkennt nur bekannte Formate (private Schlüssel, sk-, ghp_/github_pat_, AKIA, Supabase-service_role-JWT, .env, password=/secret=) und übersieht alles andere",
+        "Kann Harmloses melden (Beispielwerte, Testdaten); dafür dient .hierarchie-geheimnis-ausnahmen; ein Fund ist keine Aussage über Echtheit oder Gültigkeit",
+        "Ein bereits committetes oder gepushtes Geheimnis bleibt in der Git-Historie; der Scan prüft nur den aktuellen Stand, nicht die Historie, und ersetzt keine Rotation des Schlüssels",
+        "Binärdateien, Dateien über 1 MB und nicht versionierte Dateien werden nicht gelesen; Zuweisungen werden nur bei plausiblem Wert gemeldet (Ziffer oder Sonderzeichen, keine Platzhalter)",
+        "Die Option --gestaged liest den Index und gehört in einen pre-commit-Hook, nicht in pre-push"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "wiederholungen",
+      "cli": "wiederholungen",
+      "modul": "werkzeuge/wiederholungen.mjs",
+      "zweck": "Was wiederholt sich? Git: häufig gemeinsam geänderte Dateigruppen, Commit-Bereiche, meistgeänderte Dateien; optional aus Sitzungsprotokollen wiederholte Bash-Befehlsmuster (nur Muster und Anzahl, nie Inhalte); Funde als belegte Kandidaten ins Register",
+      "eingabe": "Git-Repository (letzte 300 Commits ohne Merges); optional --protokolle (lokale Sitzungsprotokolle), --protokoll-ordner <pfad>, --als-kandidaten [--schreiben], --json",
+      "ausgabe": "Top 10 je Git-Abschnitt, Top 15 Befehlsmuster (ab 3 Vorkommen) mit Anzahl und Sitzungen; Exit 0 ok (auch ohne Funde oder Protokolle), 1 Register-/Lesefehler, 2 Bedienfehler (kein Git-Repository ohne --protokolle)",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs wiederholungen [--protokolle] [--als-kandidaten [--schreiben]] [--json]",
+      "dateien": [
+        "werkzeuge/wiederholungen.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/hash.mjs",
+        "werkzeuge/lib/modul.mjs",
+        "werkzeuge/lib/protokolle.mjs",
+        "werkzeuge/lib/register.mjs"
+      ],
+      "tests": [
+        "tests/wiederholungen.test.mjs"
+      ],
+      "grenzen": [
+        "Das Protokollformat von Claude Code ist intern und versionsabhängig; Zeilen, die nicht passen, werden übersprungen und gezählt – Werte sind nach bestem Wissen, nach einem Claude-Code-Update können Felder fehlen",
+        "Nur lokal vorhandene Protokolle (~/.claude/projects bzw. $CLAUDE_CONFIG_DIR); Cloud-Container verlieren sie beim Ende der Sitzung, andere Rechner und gelöschte Protokolle fehlen",
+        "Befehlsmuster sind grob: nur erstes Wort plus bekannter Unterbefehl bzw. Skriptname des ersten Kommandos einer Kette (führendes cd und VAR=wert übersprungen); Pipelines, Verkettungen und Argumente bleiben unberücksichtigt",
+        "Häufig heißt nicht automatisierbar: Funde sind Hinweise für Kandidaten, die der Mensch bewertet; Dateigruppen aus Commits mit über 30 Dateien werden nicht gewertet",
+        "Mit --als-kandidaten --schreiben landen Kandidaten im Register des Projekts bzw. des hierarchie-Repos (nicht im Register des untersuchten Ordners, wenn das Werkzeug aus einem anderen Ort gestartet wird)"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20",
+        "Git (für den Git-Teil)"
+      ]
+    },
+    {
+      "name": "nutzung",
+      "cli": "nutzung",
+      "modul": "werkzeuge/nutzung.mjs",
+      "zweck": "Modellnutzung aus den lokalen Sitzungsprotokollen: Antworten und Tokens je Modell und je Sitzung, Anteil der Modellfamilien an den Ausgabe-Tokens, optional API-Preise als Vergleichswert",
+      "eingabe": "lokale Sitzungsprotokolle des aktuellen Projekts; optional --tage N (Standard 30), --api-preise, --protokoll-ordner <pfad>, --json",
+      "ausgabe": "Kopfzeile mit Hinweis und Zahl übersprungener Zeilen, Tabelle je Modell, Familienanteile, eine Zeile je Sitzung; Exit 0 ok (auch ohne Protokolle), 2 Bedienfehler",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs nutzung [--tage N] [--api-preise] [--json]",
+      "dateien": [
+        "werkzeuge/nutzung.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs",
+        "werkzeuge/lib/protokolle.mjs"
+      ],
+      "tests": [
+        "tests/nutzung.test.mjs"
+      ],
+      "grenzen": [
+        "Das Protokollformat von Claude Code ist intern und versionsabhängig; Zeilen, die nicht passen, werden übersprungen und gezählt – Werte sind nach bestem Wissen, nach einem Claude-Code-Update können Felder fehlen",
+        "Nur lokal vorhandene Protokolle (~/.claude/projects bzw. $CLAUDE_CONFIG_DIR); Cloud-Container verlieren sie beim Ende der Sitzung, andere Rechner und gelöschte Protokolle fehlen",
+        "Im Pro-Abo fallen keine Tokenkosten an und das Restkontingent ist nicht abrufbar; --api-preise ist nur ein Vergleichswert aus der hinterlegten Preistabelle (Stand 2026-10-15, nur Eingabe und Ausgabe, Cache-Tokens nicht eingerechnet), keine tatsächlichen Kosten",
+        "Dieselbe Nachricht (message.id) zählt einmal; Nachrichten ohne id und Fortsetzungen, die alte Nachrichten in neue Dateien kopieren, können abweichen. Zeilen ohne Zeitstempel zählen beim Zeitfilter mit",
+        "Stabile Alternative mit usage und Kosten: claude -p --output-format json"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    },
+    {
+      "name": "ponytail-debt",
+      "cli": "ponytail-debt",
+      "modul": "werkzeuge/ponytail-debt.mjs",
+      "zweck": "Sammelt alle bewussten Abkürzungen (Kommentare mit der Marke ponytail:) eines Repos und listet sie mit Grenze und Ausbau-Zeitpunkt auf",
+      "eingabe": "optional --streng (Exit 1 bei unvollständigen Marken), --json; durchsucht die Git-versionierten Dateien des aktuellen Repos (ohne Git: Dateibaum)",
+      "ausgabe": "eine Zeile je Marke `datei:zeile  Grenze → wann ausbauen` (fehlender Zeitpunkt: \"unvollständig\"), Summenzeile am Ende; Exit 0 Bericht (auch mit Funden), 1 nur mit --streng bei unvollständigen Marken, 2 Bedienfehler",
+      "befehl": "node .hierarchie/werkzeuge/hierarchie.mjs ponytail-debt [--streng] [--json]",
+      "dateien": [
+        "werkzeuge/ponytail-debt.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/dateien.mjs",
+        "werkzeuge/lib/git.mjs",
+        "werkzeuge/lib/modul.mjs"
+      ],
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ],
+      "tests": [
+        "tests/ponytail-debt.test.mjs"
+      ],
+      "teststatus": "gruen",
+      "grenzen": [
+        "Zeilenweise Mustererkennung: die Marke zählt nur direkt hinter einem Kommentarzeichen (//, #, /*, * am Zeilenanfang, <!--, --); mehrzeilige Kommentare werden nicht zusammengesetzt, Kommentarformen anderer Sprachen (z. B. %, ;, REM) fehlen",
+        "Markdown (*.md, *.markdown) ist bewusst ausgenommen, weil dort die Marke meist nur erklärt wird; echte Marken in Dokumentation werden nicht gefunden",
+        "Die Teilung an der ersten Komma-Stelle ist eine Faustregel: eine Grenze mit Komma erscheint verkürzt, ein Kommentar ohne Komma gilt als unvollständig",
+        "Mit Git nur versionierte Dateien (neue, nicht hinzugefügte Dateien fehlen); .hierarchie/ und node_modules/ sind ausgenommen; Binärdateien und Dateien über 1 MB werden übersprungen",
+        "Lokal nur unter Linux geprüft; Windows (CRLF, Pfade) prüft die CI",
+        "Prosa in Textdateien mit „ -- “ oder „ # “ vor der Marke zählt als Fund; Zeilen über 2000 Zeichen werden nicht durchsucht"
+      ],
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null
+    },
+    {
+      "name": "global-einrichten",
+      "cli": "global-einrichten",
+      "modul": "werkzeuge/global-einrichten.mjs",
+      "zweck": "ARBEITSWEISE.md nutzerweit laden: Setup-Skript für Cloud-Umgebungen ausgeben oder ~/.claude/CLAUDE.md lokal mit @-Import einrichten",
+      "eingabe": "--cloud (Setup-Skript auf stdout) oder lokal: [--uebernehmen] [--home <ordner>]; Quelle gedaechtnis/ARBEITSWEISE.md des hierarchie-Repos",
+      "ausgabe": "--cloud: Bash-Skript, das ~/.claude/CLAUDE.md mit Versionsmarke und eingebetteter Datei schreibt; lokal: Aktionszeile (+ neu / ~ ändern mit Sicherung / = unverändert), mit --uebernehmen Block in ~/.claude/CLAUDE.md. Exit 0 ok, 1 Quelle fehlt, Block defekt oder Datei nicht UTF-8, 2 Bedienfehler",
+      "befehl": "node werkzeuge/hierarchie.mjs global-einrichten (nur im hierarchie-Repo)",
+      "dateien": [
+        "werkzeuge/global-einrichten.mjs",
+        "tests/global-einrichten.test.mjs",
+        "tests/global-einrichten-diff.test.mjs"
+      ],
+      "voraussetzungen": [
+        "Node ≥ 20",
+        "hierarchie-Repo (gedaechtnis/ARBEITSWEISE.md)",
+        "Cloud: Skript von Hand in die Umgebungseinstellungen einfügen"
+      ],
+      "tests": [
+        "tests/global-einrichten.test.mjs",
+        "tests/global-einrichten-diff.test.mjs"
+      ],
+      "teststatus": "gruen",
+      "grenzen": [
+        "Cloud-Skript enthält eine Kopie: nach jeder Änderung an ARBEITSWEISE.md neu erzeugen und einfügen (Versionsmarke zeigt den Stand)",
+        "lokaler @-Import mit Leerzeichen im Pfad ist ungeprüft",
+        "in Projektkopien (.hierarchie/) ohne Funktion, weil die Quelle fehlt"
+      ],
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null
+    },
+    {
+      "name": "projekte",
+      "cli": "projekte",
+      "modul": "werkzeuge/projekte.mjs",
+      "zweck": "Projektübersicht über alle Repos: STAND.md anderer Repos als Momentaufnahme einlesen, Repos und Sitzungen als Metadaten (aktiv, Bereich, Sitzungszahl, Themen), Liste und Gesamtseite (HTML)",
+      "eingabe": "(ohne) | einlesen <owner/repo> <STAND.md|Ordner> [--quelle <branch>] [--seite <https-Link>] | quellen <datei…> (Antworten von list_repos/list_sessions) | html",
+      "ausgabe": "Liste nach Bereich; einlesen und quellen schreiben gedaechtnis/projekte.json; html schreibt uebersicht.html und uebersicht.seite.html. Exit 0 ok, 1 ungültige STAND.md, projekte.json oder bereiche.json, 2 Bedienfehler",
+      "befehl": "node werkzeuge/hierarchie.mjs projekte",
+      "dateien": [
+        "werkzeuge/projekte.mjs",
+        "werkzeuge/stand.mjs",
+        "werkzeuge/lib/stand-seite.mjs",
+        "werkzeuge/lib/markdown.mjs",
+        "werkzeuge/lib/argumente.mjs",
+        "werkzeuge/lib/json.mjs"
+      ],
+      "tests": [
+        "tests/projekte.test.mjs",
+        "tests/projekte-pruefung.test.mjs",
+        "tests/projekte-pruefung-a3.test.mjs"
+      ],
+      "grenzen": [
+        "Holt nichts aus dem Netz: die STAND.md anderer Repos besorgt Claude; projekte.json ist eine Momentaufnahme mit Datum und kann veralten",
+        "In einem Projekt wird projekte.json nur im Nachbarordner ../hierarchie gefunden; ohne hierarchie-Klon entfällt die Zeile „Anderswo offen“",
+        "„Offen“ zählt nur Listenpunkte oberster Ebene im Abschnitt Offene Punkte; Fließtext und Unterpunkte zählen nicht",
+        "Veröffentlichen auf claude.ai übernimmt Claude mit dem Artifact-Werkzeug, nicht dieses Skript",
+        "quellen ruft die Session-Schnittstelle nicht selbst auf: die Antworten besorgt Claude (Haiku-Worker) als JSON-Dateien",
+        "Themen sind einzelne Wörter aus Sitzungstiteln; allgemeine Wörter (z. B. claude, project) erscheinen mit, Bewertung durch den Nutzer",
+        "„aktiv“ richtet sich nur nach dem letzten Push, nicht nach Sitzungen"
+      ],
+      "teststatus": "gruen",
+      "modell_noetig": "nein",
+      "haeufigkeit": {
+        "wert": "vermutet",
+        "belegt": false,
+        "quelle": null
+      },
+      "zeitersparnis": null,
+      "voraussetzungen": [
+        "Node ≥ 20"
+      ]
+    }
+  ],
+  "kandidaten": []
+}

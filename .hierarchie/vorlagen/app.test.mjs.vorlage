@@ -1,0 +1,35 @@
+// Tests für die App {{name}} ({{html_datei}}). Gerüst von `neues-werkzeug`: die drei Strukturtests sind echt, der
+// todo-Test am Ende ist bewusst offen (die UTS zählt ihn als übersprungen). Solange die Marke {{marke}} in dieser
+// Datei steht, bleibt der Teststatus im Register „ungetestet“. Zu prüfen: die Logik der App (reine Funktionen
+// des eingebetteten Skripts), Randfälle der Eingabe. Danach Marke und todo entfernen und `register aktualisieren`.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const html = readFileSync(fileURLToPath(new URL('{{html_relativ}}', import.meta.url)), 'utf8');
+const skripte = [...html.matchAll(/<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi)].map((treffer) => treffer[1]);
+
+test('{{name}}: eingebettetes Skript ist syntaktisch gültig', () => {
+  assert.ok(skripte.length > 0, 'kein eingebettetes Skript');
+  for (const code of skripte) assert.doesNotThrow(() => new Function(code));
+});
+
+test('{{name}}: Pflichtelemente sind vorhanden (Titel, Zeichensatz, Viewport, main, helles/dunkles Farbschema)', () => {
+  assert.match(html, /<!doctype html>/i);
+  assert.match(html, /<title>[^<]+<\/title>/i);
+  assert.match(html, /<meta\s+charset=/i);
+  assert.match(html, /<meta\s+name="viewport"/i);
+  assert.match(html, /<main[\s>]/i);
+  assert.match(html, /prefers-color-scheme:\s*dark/);
+});
+
+test('{{name}}: lädt nichts von außen (keine externen URLs in src, href, url() oder @import)', () => {
+  assert.doesNotMatch(html, /\b(?:src|href|action|poster)\s*=\s*["']?\s*(?:https?:)?\/\//i);
+  assert.doesNotMatch(html, /url\(\s*["']?\s*(?:https?:)?\/\//i);
+  assert.doesNotMatch(html, /@import/i);
+});
+
+test('{{name}}: Logik der App prüfen', { todo: 'Gerüst – Logik des eingebetteten Skripts testen (siehe Kommentar oben)' }, () => {
+  throw new Error('Gerüst: noch nicht geprüft');
+});

@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 tasks_state.json
 tasks_state.json.tmp
+.uts/
+plaene/*/plan.html
+stand.html
+stand.seite.html
+uebersicht.html
+uebersicht.seite.html

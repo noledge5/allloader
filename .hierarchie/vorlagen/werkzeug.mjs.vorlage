@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+/**
+ * hierarchie {{name}} – {{zweck_kommentar}}
+ *
+ * Gerüst von `neues-werkzeug`. Zu tun: Verhalten umsetzen, Eingaben prüfen, Tests in {{test_pfad}}
+ * schreiben (das Gerüst dort ersetzen), den Registereintrag in {{register_pfad}} vervollständigen
+ * (eingabe, ausgabe, grenzen, modell_noetig) und `register aktualisieren` nach einem UTS-Vollauf ausführen.
+ * Regeln: exportierte `main(argv, io)`, `--hilfe`, Exit 0 ok · 1 Befund/Fehler im Inhalt · 2 Bedienfehler,
+ * knappe Ausgabe, schreiben nur mit ausdrücklicher Option (oder wenn Schreiben der Zweck ist, dann in der Hilfe nennen).
+ */
+import { istStartdatei, standardEinAus } from '{{lib}}/modul.mjs';
+
+const ZWECK = {{zweck_js}};
+
+const HILFE = `Aufruf: hierarchie {{name}} [--hilfe]
+
+${ZWECK}
+
+Exit-Code: 0 ok · 1 Befund/Fehler im Inhalt · 2 Bedienfehler`;
+
+/** Führt `{{name}}` aus (Argumente ohne Befehlsnamen); liefert den Exit-Code. */
+export async function main(argv, io = standardEinAus()) {
+  if (argv.some((arg) => ['--hilfe', '--help', '-h'].includes(arg))) {
+    io.aus(HILFE);
+    return 0;
+  }
+  const unbekannt = argv.find((arg) => arg.startsWith('-'));
+  if (unbekannt) {
+    io.fehler(`hierarchie {{name}}: unbekannte Option ${unbekannt} (siehe --hilfe)`);
+    return 2;
+  }
+  io.fehler('hierarchie {{name}}: Gerüst, noch nicht umgesetzt');
+  return 1;
+}
+
+if (istStartdatei(import.meta.url)) process.exitCode = await main(process.argv.slice(2));

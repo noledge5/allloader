@@ -1,0 +1,9 @@
+// Tests für {{name}}. Gerüst von `neues-werkzeug`: der Test unten ist bewusst ein todo-Test (die UTS zählt ihn als
+// übersprungen). Solange die Marke {{marke}} in dieser Datei steht, bleibt der Teststatus im Register „ungetestet“.
+// Zu prüfen: Eingabevalidierung und verständliche Fehlermeldungen, Ausgabe, Exit-Codes 0/1/2, --hilfe, Fehlerfälle.
+// Danach das Gerüst ersetzen (Marke und todo entfernen), `uts` im Vollauf ausführen, `register aktualisieren`.
+import { test } from 'node:test';
+
+test('{{name}}: Verhalten prüfen', { todo: 'Gerüst – echte Tests schreiben (siehe Kommentar oben)' }, () => {
+  throw new Error('Gerüst: noch nicht geprüft');
+});
